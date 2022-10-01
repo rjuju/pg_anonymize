@@ -29,8 +29,10 @@
 #include "catalog/pg_namespace.h"
 #endif
 #include "catalog/pg_seclabel.h"
+#include "catalog/pg_type.h"
 #include "commands/copy.h"
 #include "commands/seclabel.h"
+#include "executor/spi.h"
 #include "miscadmin.h"
 #include "nodes/makefuncs.h"
 #include "nodes/nodeFuncs.h"
@@ -43,6 +45,7 @@
 #include "utils/lsyscache.h"
 #include "utils/memutils.h"
 #include "utils/rel.h"
+#include "utils/syscache.h"
 
 
 PG_MODULE_MAGIC;
@@ -67,6 +70,7 @@ bool pgan_toplevel = true;
 
 /*---- GUC variables ----*/
 
+static bool pgan_check_labels;
 static bool pgan_enabled;
 
 /*---- Function declarations ----*/
@@ -95,17 +99,35 @@ static void pgan_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 #endif
 								);
 
+static void pgan_check_injection(Relation rel,
+								const ObjectAddress *object,
+								const char *seclabel);
+static void pgan_check_expression_valid(Relation rel,
+										const ObjectAddress *object,
+										const char *seclabel);
 static char *pgan_get_query_for_relid(Relation rel, List *attlist);
 static bool pgan_hack_query(Node *node, void *context);
 static void pgan_hack_rte(RangeTblEntry *rte);
 static void pgan_object_relabel(const ObjectAddress *object,
 							    const char *seclabel);
+static char *pgan_typename(Oid typid);
 
 
 void
 _PG_init(void)
 {
 	register_label_provider(PGAN_PROVIDER, pgan_object_relabel);
+
+	DefineCustomBoolVariable("pg_anonymize.check_labels",
+							 "Check SECURITY LABELS when they are defined.",
+							 NULL,
+							 &pgan_check_labels,
+							 true,
+							 PGC_SUSET,
+							 0,
+							 NULL,
+							 NULL,
+							 NULL);
 
 	DefineCustomBoolVariable("pg_anonymize.enabled",
 							 "Globally enable pg_anonymize.",
@@ -125,6 +147,127 @@ _PG_init(void)
 	post_parse_analyze_hook = pgan_post_parse_analyze;
 	prev_ProcessUtility = ProcessUtility_hook;
 	ProcessUtility_hook = pgan_ProcessUtility;
+}
+
+/*
+ * Make sure that the given expression doesn't contain any SQL injection
+ * attempt.
+ */
+static void
+pgan_check_injection(Relation rel,
+					const ObjectAddress *object,
+					const char *seclabel)
+{
+	FormData_pg_attribute *att;
+	StringInfoData sql;
+	List *parsetree_list;
+
+	att = TupleDescAttr(RelationGetDescr(rel), object->objectSubId - 1);
+
+	initStringInfo(&sql);
+	appendStringInfo(&sql, "SELECT %s AS %s FROM %s.%s",
+					 seclabel,
+					 quote_identifier(NameStr(att->attname)),
+					 quote_identifier(get_namespace_name(RelationGetNamespace(rel))),
+					 quote_identifier(RelationGetRelationName(rel)));
+
+	parsetree_list = pg_parse_query(sql.data);
+
+	if (list_length(parsetree_list) != 1)
+		elog(ERROR, "SQL injection detected!");
+}
+
+/*
+ * Perform sanity checks on the user provided security label
+ */
+static void
+pgan_check_expression_valid(Relation rel, const ObjectAddress *object,
+							const char *seclabel)
+{
+	StringInfoData sql;
+	int ret;
+	bool prev_xact_read_only;
+
+	initStringInfo(&sql);
+	appendStringInfo(&sql, "SELECT pg_typeof(%s)::regtype::oid FROM %s.%s LIMIT 1",
+			seclabel,
+			quote_identifier(get_namespace_name(RelationGetNamespace(rel))),
+			quote_identifier(RelationGetRelationName(rel)));
+
+	if ((ret = SPI_connect()) < 0)
+	{
+		/* internal error */
+		elog(ERROR, "SPI_connect returned %d", ret);
+	}
+
+	/*
+	 * We ask for read-only SPI execution, but it doesn't reliably detect write
+	 * queries, so force additional executor check.
+	 */
+	prev_xact_read_only = XactReadOnly;
+	PG_TRY();
+	{
+		XactReadOnly = true;
+		SPI_execute(sql.data, true, 1);
+	}
+#if PG_VERSION_NUM >= 130000
+	PG_FINALLY();
+	{
+		XactReadOnly = prev_xact_read_only;
+	}
+#else
+	PG_CATCH();
+	{
+		XactReadOnly = prev_xact_read_only;
+		PG_RE_THROW();
+	}
+#endif
+	PG_END_TRY();
+
+	/*
+	 * No row in the source table, can't say about the expession apart that
+	 * it's valid.
+	 */
+	if (SPI_processed == 0)
+		elog(NOTICE, "the expression \"%s\" is valid but no data in table"
+				" %s.%s, cannot check returned type",
+				seclabel,
+				quote_identifier(get_namespace_name(RelationGetNamespace(rel))),
+				quote_identifier(RelationGetRelationName(rel)));
+	else
+	{
+		FormData_pg_attribute *att;
+		Oid		typid;
+		bool	isnull;
+
+		Assert(SPI_processed == 1);
+
+		typid = DatumGetObjectId(SPI_getbinval(SPI_tuptable->vals[0],
+											   SPI_tuptable->tupdesc,
+						 		 			   1, &isnull));
+
+		/* Should not happen */
+		if (isnull)
+			elog(ERROR, "unexpected NULL value");
+
+		att = TupleDescAttr(RelationGetDescr(rel), object->objectSubId - 1);
+
+		if (typid != att->atttypid)
+		{
+			if (typid == UNKNOWNOID && att->atttypid == TEXTOID)
+			{
+				/* Should be valid, but notify the user. */
+				elog(NOTICE, "The expression has an unknown type, you may "
+						"want to explicitly cast it to text");
+			}
+			else
+				elog(ERROR, "The expression returns \"%s\" type, but the "
+						" column is defined as \"%s\"",
+					pgan_typename(typid),
+					pgan_typename(att->atttypid));
+		}
+	}
+	SPI_finish();
 }
 
 /*
@@ -483,9 +626,20 @@ pgan_object_relabel(const ObjectAddress *object, const char *seclabel)
 
 			/* Don't accept any catalog object */
 			rel = relation_open(object->objectId, AccessShareLock);
+
 			if (RelationGetNamespace(rel) == PG_CATALOG_NAMESPACE)
 				elog(ERROR, "unsupported catalog relation \"%s\"",
 						RelationGetRelationName(rel));
+
+			/* Perform sanity checks when defining a new security label. */
+			if (seclabel)
+			{
+				pgan_check_injection(rel, object, seclabel);
+
+				if (pgan_check_labels)
+					pgan_check_expression_valid(rel, object, seclabel);
+			}
+
 			relation_close(rel, AccessShareLock);
 			break;
 		}
@@ -498,4 +652,22 @@ pgan_object_relabel(const ObjectAddress *object, const char *seclabel)
 					get_rel_name(object->classId));
 			break;
 	}
+}
+
+/* Return a palloc'd copy of the type name for the given type. */
+static char *
+pgan_typename(Oid typid)
+{
+	HeapTuple tup;
+	char *res;
+
+	tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
+
+	if (!HeapTupleIsValid(tup))
+		elog(ERROR, "type with oid %u is unknown", typid);
+
+	res = pstrdup(NameStr(((Form_pg_type) GETSTRUCT(tup))->typname));
+	ReleaseSysCache(tup);
+
+	return res;
 }

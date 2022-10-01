@@ -46,6 +46,13 @@ pg_anonymize provides the following configuration options:
 - **pg_anonymize.enabled** (bool): allows to globally enable or disable
   pg_anonymize.  The default value is **on**.
 
+- **pg_anonymize.check_labels** (bool): perform sanity checks (expression
+  validity, read-only, returned type and lack of SQL injection) on the defined
+  expression when declaring security labels.  The default value is **on**.
+
+NOTE: even if **pg_anonymize.check_labels** is disabled, pg_anonymize will
+still check that the defined expression doesn't contain any SQL injection.
+
 Usage
 -----
 
