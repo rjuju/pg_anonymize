@@ -105,7 +105,10 @@ static void pgan_check_injection(Relation rel,
 static void pgan_check_expression_valid(Relation rel,
 										const ObjectAddress *object,
 										const char *seclabel);
-static char *pgan_get_query_for_relid(Relation rel, List *attlist);
+static List *pgan_get_attnums(TupleDesc tupDesc, Relation rel,
+							  List *attnamelist, bool is_copy);
+static char *pgan_get_query_for_relid(Relation rel, List *attlist,
+									  bool is_copy);
 static bool pgan_hack_query(Node *node, void *context);
 static void pgan_hack_rte(RangeTblEntry *rte);
 static void pgan_object_relabel(const ObjectAddress *object,
@@ -271,10 +274,96 @@ pgan_check_expression_valid(Relation rel, const ObjectAddress *object,
 }
 
 /*
+ * Adaptation of CopyGetAttnums that optionally allows generated attributes
+ */
+static List *
+pgan_get_attnums(TupleDesc tupDesc, Relation rel, List *attnamelist,
+				 bool is_copy)
+{
+	List	   *attnums = NIL;
+
+	if (attnamelist == NIL)
+	{
+		/* Generate default column list */
+		int			attr_count = tupDesc->natts;
+		int			i;
+
+		for (i = 0; i < attr_count; i++)
+		{
+			if (TupleDescAttr(tupDesc, i)->attisdropped)
+				continue;
+#if PG_VERSION_NUM >= 120000
+			/* Only COPY should ignore generated attributes */
+			if (TupleDescAttr(tupDesc, i)->attgenerated && is_copy)
+				continue;
+#endif
+			attnums = lappend_int(attnums, i + 1);
+		}
+	}
+	else
+	{
+		/* Validate the user-supplied list and extract attnums */
+		ListCell   *l;
+
+		foreach(l, attnamelist)
+		{
+			char	   *name = strVal(lfirst(l));
+			int			attnum;
+			int			i;
+
+			/* Lookup column name */
+			attnum = InvalidAttrNumber;
+			for (i = 0; i < tupDesc->natts; i++)
+			{
+				Form_pg_attribute att = TupleDescAttr(tupDesc, i);
+
+				if (att->attisdropped)
+					continue;
+				if (namestrcmp(&(att->attname), name) == 0)
+				{
+#if PG_VERSION_NUM >= 120000
+					if (att->attgenerated && is_copy)
+						ereport(ERROR,
+								(errcode(ERRCODE_INVALID_COLUMN_REFERENCE),
+								 errmsg("column \"%s\" is a generated column",
+										name),
+								 errdetail("Generated columns cannot be used in COPY.")));
+#endif
+					attnum = att->attnum;
+					break;
+				}
+			}
+			if (attnum == InvalidAttrNumber)
+			{
+				if (rel != NULL)
+					ereport(ERROR,
+							(errcode(ERRCODE_UNDEFINED_COLUMN),
+							 errmsg("column \"%s\" of relation \"%s\" does not exist",
+									name, RelationGetRelationName(rel))));
+				else
+					ereport(ERROR,
+							(errcode(ERRCODE_UNDEFINED_COLUMN),
+							 errmsg("column \"%s\" does not exist",
+									name)));
+			}
+			/* Check for duplicates */
+			if (list_member_int(attnums, attnum))
+				ereport(ERROR,
+						(errcode(ERRCODE_DUPLICATE_COLUMN),
+						 errmsg("column \"%s\" specified more than once",
+								name)));
+			attnums = lappend_int(attnums, attnum);
+		}
+	}
+
+	return attnums;
+}
+
+/*
  * Generate an SQL query returning the anonymized data.
  */
 static char *
-pgan_get_query_for_relid(Relation rel, List *attlist)
+pgan_get_query_for_relid(Relation rel, List *attlist, bool is_copy)
 {
 	List	   *attnums;
 	ListCell   *lc;
@@ -288,7 +377,7 @@ pgan_get_query_for_relid(Relation rel, List *attlist)
 		return NULL;
 
 	tupdesc = RelationGetDescr(rel);
-	attnums = CopyGetAttnums(tupdesc, rel, attlist);
+	attnums = pgan_get_attnums(tupdesc, rel, attlist, is_copy);
 
 	initStringInfo(&select);
 	appendStringInfoString(&select, "SELECT ");
@@ -389,7 +478,7 @@ pgan_hack_rte(RangeTblEntry *rte)
 	char *sql;
 
 	rel = relation_open(rte->relid, AccessShareLock);
-	sql = pgan_get_query_for_relid(rel, NIL);
+	sql = pgan_get_query_for_relid(rel, NIL, false);
 	relation_close(rel, NoLock);
 
 	/*
@@ -541,7 +630,7 @@ pgan_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 		goto hook;
 
 	rel = relation_openrv(stmt->relation, AccessShareLock);
-	sql = pgan_get_query_for_relid(rel, stmt->attlist);
+	sql = pgan_get_query_for_relid(rel, stmt->attlist, true);
 	relation_close(rel, NoLock);
 
 	/* If we got a query, use it in the COPY TO statement */
