@@ -4,7 +4,6 @@ CREATE TABLE public.customer(id integer,
     birthday date,
     phone_number text);
 INSERT INTO public.customer VALUES (1, 'Nice', 'Customer', '1970-03-04', '+886 1234 5678');
-GRANT SELECT ON TABLE public.customer TO alice;
 
 CREATE FUNCTION write_and_return(val text) RETURNS text AS
 $$
