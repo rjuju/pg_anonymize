@@ -553,8 +553,12 @@ pgan_hack_rte(RangeTblEntry *rte)
 		rte->rellockmode = 0;
 #endif
 		rte->tablesample = NULL;
+#if PG_VERSION_NUM >= 160000
+		rte->perminfoindex = 0;		/* no permission checking for this RTE */
+#endif
 		rte->inh = false;			/* must not be set for a subquery */
 
+#if PG_VERSION_NUM < 160000
 		rte->requiredPerms = 0;		/* no permission check on subquery itself */
 		rte->checkAsUser = InvalidOid;
 		rte->selectedCols = NULL;
@@ -562,7 +566,8 @@ pgan_hack_rte(RangeTblEntry *rte)
 		rte->updatedCols = NULL;
 #if PG_VERSION_NUM >= 120000
 		rte->extraUpdatedCols = NULL;
-#endif
+#endif			/* pg12+ */
+#endif			/* pg16- */
 	}
 }
 
