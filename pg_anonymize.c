@@ -503,6 +503,7 @@ pgan_hack_rte(RangeTblEntry *rte)
 		List *parselist;
 		RawStmt *raw;
 		Query *subquery;
+		bool prev_toplevel = pgan_toplevel;
 
 		parselist = pg_parse_query(sql);
 
@@ -519,24 +520,14 @@ pgan_hack_rte(RangeTblEntry *rte)
 		PG_TRY();
 		{
 			subquery = parse_analyze_fixedparams(raw, sql, NULL, 0, NULL);
+			pgan_toplevel = prev_toplevel;
 		}
-#if PG_VERSION_NUM >= 130000
-		PG_FINALLY();
-		{
-			pgan_toplevel = true;
-		}
-#else
 		PG_CATCH();
 		{
-			pgan_toplevel = true;
+			pgan_toplevel = prev_toplevel;
 			PG_RE_THROW();
 		}
-#endif
 		PG_END_TRY();
-
-#if PG_VERSION_NUM < 130000
-		pgan_toplevel = true;
-#endif
 
 		/* Remember to not process it again */
 		subquery->querySource = QSRC_PARSER;
@@ -632,6 +623,7 @@ pgan_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 	ObjectAddress addr;
 	CopyStmt *stmt;
 	char *seclabel, *sql;
+	bool prev_toplevel = pgan_toplevel;
 
 	/* Module disabled, recursive call or not a COPY statement, bail out. */
 	if (!pgan_enabled || !pgan_toplevel || !IsA(parsetree, CopyStmt))
@@ -675,21 +667,8 @@ pgan_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 hook:
 	PG_TRY();
 	{
-	if (prev_ProcessUtility)
-		prev_ProcessUtility(pstmt, queryString,
-#if PG_VERSION_NUM >= 140000
-							readOnlyTree,
-#endif
-							context, params, queryEnv,
-							dest,
-#if PG_VERSION_NUM >= 130000
-							qc
-#else
-							completionTag
-#endif
-							);
-	else
-		standard_ProcessUtility(pstmt, queryString,
+		if (prev_ProcessUtility)
+			prev_ProcessUtility(pstmt, queryString,
 #if PG_VERSION_NUM >= 140000
 								readOnlyTree,
 #endif
@@ -701,19 +680,27 @@ hook:
 								completionTag
 #endif
 								);
-	}
+		else
+			standard_ProcessUtility(pstmt, queryString,
+#if PG_VERSION_NUM >= 140000
+									readOnlyTree,
+#endif
+									context, params, queryEnv,
+									dest,
 #if PG_VERSION_NUM >= 130000
-	PG_FINALLY();
-	{
-		pgan_toplevel = true;
-	}
+									qc
 #else
+									completionTag
+#endif
+									);
+
+		pgan_toplevel = prev_toplevel;
+	}
 	PG_CATCH();
 	{
-		pgan_toplevel = true;
+		pgan_toplevel = prev_toplevel;
 		PG_RE_THROW();
 	}
-#endif
 	PG_END_TRY();
 }
 
