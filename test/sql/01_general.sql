@@ -21,6 +21,8 @@ SET pg_anonymize.check_labels = 'on';
 -- invalid expression
 SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.first_name
     IS 'error';
+SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.first_name
+    IS 'another error';
 -- wrong type
 SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.first_name
     IS '1';

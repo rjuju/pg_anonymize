@@ -21,6 +21,13 @@ ERROR:  column "error" does not exist
 LINE 1: SELECT pg_typeof(error)::regtype::oid FROM public.customer L...
                          ^
 QUERY:  SELECT pg_typeof(error)::regtype::oid FROM public.customer LIMIT 1
+CONTEXT:  during validation of expression "error"
+SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.first_name
+    IS 'another error';
+ERROR:  syntax error at or near "AS"
+LINE 1: SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.fi...
+                             ^
+CONTEXT:  during validation of expression "another error"
 -- wrong type
 SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.first_name
     IS '1';
@@ -32,6 +39,7 @@ ERROR:  cannot execute INSERT in a read-only transaction
 CONTEXT:  SQL statement "INSERT INTO public.customer(id) VALUES (0)"
 PL/pgSQL function write_and_return(text) line 3 at SQL statement
 SQL statement "SELECT pg_typeof(write_and_return(first_name))::regtype::oid FROM public.customer LIMIT 1"
+during validation of expression "write_and_return(first_name)"
 -- SQL injection
 SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.first_name
     IS $$'some value'; INSERT INTO public.customer SELECT 1; --$$;

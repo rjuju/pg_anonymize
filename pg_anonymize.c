@@ -188,7 +188,16 @@ pgan_check_injection(Relation rel,
 					 quote_identifier(get_namespace_name(RelationGetNamespace(rel))),
 					 quote_identifier(RelationGetRelationName(rel)));
 
-	parsetree_list = pg_parse_query(sql.data);
+	PG_TRY();
+	{
+		parsetree_list = pg_parse_query(sql.data);
+	}
+	PG_CATCH();
+	{
+		errcontext("during validation of expression \"%s\"", seclabel);
+		PG_RE_THROW();
+	}
+	PG_END_TRY();
 
 	if (list_length(parsetree_list) != 1)
 		elog(ERROR, "SQL injection detected!");
@@ -226,19 +235,14 @@ pgan_check_expression_valid(Relation rel, const ObjectAddress *object,
 	{
 		XactReadOnly = true;
 		SPI_execute(sql.data, true, 1);
-	}
-#if PG_VERSION_NUM >= 130000
-	PG_FINALLY();
-	{
 		XactReadOnly = prev_xact_read_only;
 	}
-#else
 	PG_CATCH();
 	{
 		XactReadOnly = prev_xact_read_only;
+		errcontext("during validation of expression \"%s\"", seclabel);
 		PG_RE_THROW();
 	}
-#endif
 	PG_END_TRY();
 
 	/*
@@ -505,7 +509,16 @@ pgan_hack_rte(RangeTblEntry *rte)
 		Query *subquery;
 		bool prev_toplevel = pgan_toplevel;
 
-		parselist = pg_parse_query(sql);
+		PG_TRY();
+		{
+			parselist = pg_parse_query(sql);
+		}
+		PG_CATCH();
+		{
+			errcontext("during anonymization of table %s", get_rel_name(rte->relid));
+			PG_RE_THROW();
+		}
+		PG_END_TRY();
 
 		Assert(list_length(parselist) == 1);
 		Assert(IsA(linitial(parselist), RawStmt));
@@ -649,9 +662,18 @@ pgan_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 	{
 		List *parselist;
 
-		parselist = pg_parse_query(sql);
-		Assert(list_length(parselist) == 1);
-		Assert(IsA(linitial(parselist), RawStmt));
+		PG_TRY();
+		{
+			parselist = pg_parse_query(sql);
+			Assert(list_length(parselist) == 1);
+			Assert(IsA(linitial(parselist), RawStmt));
+		}
+		PG_CATCH();
+		{
+			errcontext("during validation of expression \"%s\"", seclabel);
+			PG_RE_THROW();
+		}
+		PG_END_TRY();
 
 		pfree(stmt->relation);
 		stmt->relation = NULL;
