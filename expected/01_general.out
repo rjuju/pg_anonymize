@@ -31,7 +31,7 @@ CONTEXT:  during validation of expression "another error"
 -- wrong type
 SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.first_name
     IS '1';
-ERROR:  The expression returns "int4" type, but the  column is defined as "text"
+ERROR:  The expression returns "integer" type, but the  column is defined as "text"
 -- underlying write
 SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.first_name
     IS $$write_and_return(first_name)$$;

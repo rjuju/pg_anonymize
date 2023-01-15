@@ -127,7 +127,6 @@ static bool pgan_hack_query(Node *node, void *context);
 static void pgan_hack_rte(RangeTblEntry *rte);
 static void pgan_object_relabel(const ObjectAddress *object,
 							    const char *seclabel);
-static char *pgan_typename(Oid typid);
 
 
 void
@@ -284,8 +283,8 @@ pgan_check_expression_valid(Relation rel, const ObjectAddress *object,
 			else
 				elog(ERROR, "The expression returns \"%s\" type, but the "
 						" column is defined as \"%s\"",
-					pgan_typename(typid),
-					pgan_typename(att->atttypid));
+					format_type_be(typid),
+					format_type_be(att->atttypid));
 		}
 	}
 	SPI_finish();
@@ -769,22 +768,4 @@ pgan_object_relabel(const ObjectAddress *object, const char *seclabel)
 					get_rel_name(object->classId));
 			break;
 	}
-}
-
-/* Return a palloc'd copy of the type name for the given type. */
-static char *
-pgan_typename(Oid typid)
-{
-	HeapTuple tup;
-	char *res;
-
-	tup = SearchSysCache1(TYPEOID, ObjectIdGetDatum(typid));
-
-	if (!HeapTupleIsValid(tup))
-		elog(ERROR, "type with oid %u is unknown", typid);
-
-	res = pstrdup(NameStr(((Form_pg_type) GETSTRUCT(tup))->typname));
-	ReleaseSysCache(tup);
-
-	return res;
 }
