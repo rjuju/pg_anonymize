@@ -38,6 +38,15 @@ SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.birthday
 -- unknown to text is ok with a notice
 SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.last_name
     IS $$'some text'$$;
+-- catalog relations are not supported
+SECURITY LABEL FOR pg_anonymize ON COLUMN pg_catalog.pg_statistic.stakind1
+    IS $$'ERROR:  unsupported catalog relation "pg_statistic"'$$;
+-- column name must be qualified
+SECURITY LABEL FOR pg_anonymize ON COLUMN pg_ts_dict
+    IS $$'ERROR:  column name must be qualified'$$;
+-- only relations are supported
+SECURITY LABEL FOR pg_anonymize ON TYPE INTEGER
+	IS $$'ERROR:  pg_anonymize does not support "pg_type" catalog'$$;
 
 -- Test various anonymization
 SET pg_anonymize.enabled = 'on';
