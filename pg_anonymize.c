@@ -245,7 +245,7 @@ pgan_check_expression_valid(Relation rel, const ObjectAddress *object,
 	PG_END_TRY();
 
 	/*
-	 * No row in the source table, can't say about the expession apart that
+	 * No row in the source table, can't say about the expression apart that
 	 * it's valid.
 	 */
 	if (SPI_processed == 0)

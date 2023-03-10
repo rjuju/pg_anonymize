@@ -117,7 +117,7 @@ SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.phone_number
 ```
 
 NOTE: declaring a SECURITY LABEL on a column requires to be owner of the
-underying relation.
+underlying relation.
 
 The **alice** role will now automatically see anonymized data.  For instance:
 
