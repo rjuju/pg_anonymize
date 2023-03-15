@@ -10,6 +10,8 @@ INSERT INTO t_inh_a SELECT 2, 't_inh_a', 'a';
 INSERT INTO t_inh_b SELECT 3, 't_inh_b', 'b';
 SECURITY LABEL FOR pg_anonymize
     ON COLUMN public.t_inh.val IS $$'root hidden'::text$$;
+SECURITY LABEL FOR pg_anonymize
+    ON COLUMN public.t_inh_b.val IS $$'part hidden'::text$$;
 SET pg_anonymize.enabled = 'off';
 -- should see original data
 SELECT * FROM t_part_list ORDER BY id;
@@ -42,11 +44,12 @@ SELECT * FROM t_inh_a ORDER BY id;
 
 COPY t_inh_a TO stdout;
 2	t_inh_a	a
+-- unless there's an explicit anonymization rule on it
 SELECT * FROM t_inh_b ORDER BY id;
- id |   val   | val_b 
-----+---------+-------
-  3 | t_inh_b | b
+ id |     val     | val_b 
+----+-------------+-------
+  3 | part hidden | b
 (1 row)
 
 COPY t_inh_b TO stdout;
-3	t_inh_b	b
+3	part hidden	b
