@@ -1,5 +1,4 @@
 EXTVERSION   = 0.0.1
-TESTS        = $(wildcard test/sql/*.sql)
 REGRESS      = 01_general 02_partitioning
 REGRESS_OPTS = --inputdir=test
 
