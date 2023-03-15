@@ -388,9 +388,13 @@ pgan_get_query_for_relid(Relation rel, List *attlist, bool is_copy)
 	StringInfoData select;
 	bool		first, found_seclabel;
 
-	/* We only anonymize plain relations and materialized views. */
+	/*
+	 * We only anonymize plain (possibly partitioned )relations and
+	 * materialized views.
+	 */
 	if (rel->rd_rel->relkind != RELKIND_RELATION &&
-		rel->rd_rel->relkind != RELKIND_MATVIEW)
+		rel->rd_rel->relkind != RELKIND_MATVIEW &&
+		rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
 		return NULL;
 
 	tupdesc = RelationGetDescr(rel);
