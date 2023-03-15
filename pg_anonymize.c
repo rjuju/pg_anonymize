@@ -125,6 +125,7 @@ static char *pgan_get_query_for_relid(Relation rel, List *attlist,
 									  bool is_copy);
 static bool pgan_hack_query(Node *node, void *context);
 static void pgan_hack_rte(RangeTblEntry *rte);
+static bool pgan_is_role_anonymized(void);
 static void pgan_object_relabel(const ObjectAddress *object,
 							    const char *seclabel);
 
@@ -578,6 +579,18 @@ pgan_hack_rte(RangeTblEntry *rte)
 	}
 }
 
+static bool
+pgan_is_role_anonymized(void)
+{
+	ObjectAddress	addr;
+	char		   *seclabel;
+
+	ObjectAddressSet(addr, AuthIdRelationId, GetUserId());
+	seclabel = GetSecurityLabel(&addr, PGAN_PROVIDER);
+
+	return (seclabel && strcmp(seclabel, PGAN_ROLE_ANONYMIZED) == 0);
+}
+
 /*
  * Walks the given query and replace any reference to an anonymized table with
  * a subquery generating the anonymized data and configured.
@@ -589,9 +602,6 @@ pgan_post_parse_analyze(ParseState *pstate, Query *query
 #endif
 		)
 {
-	ObjectAddress	addr;
-	char		   *seclabel;
-
 	/* Module disabled, recursive call or aborted transaction, bail out. */
 	if (!pgan_enabled || !pgan_toplevel || !IsTransactionState())
 		goto hook;
@@ -599,9 +609,7 @@ pgan_post_parse_analyze(ParseState *pstate, Query *query
 	/* XXX - should we try to prevent write queries ? */
 
 	/* Role isn't declared as anonymized, bail out. */
-	ObjectAddressSet(addr, AuthIdRelationId, GetUserId());
-	seclabel = GetSecurityLabel(&addr, PGAN_PROVIDER);
-	if (!seclabel || strcmp(seclabel, PGAN_ROLE_ANONYMIZED) != 0)
+	if (!pgan_is_role_anonymized())
 		goto hook;
 
 	/* Walk the query and generate rewritten subquery when needed. */
@@ -636,9 +644,8 @@ pgan_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 {
 	Node	   *parsetree = pstmt->utilityStmt;
 	Relation rel;
-	ObjectAddress addr;
 	CopyStmt *stmt;
-	char *seclabel, *sql;
+	char *sql;
 	bool prev_toplevel = pgan_toplevel;
 
 	/* Module disabled, recursive call or not a COPY statement, bail out. */
@@ -651,9 +658,7 @@ pgan_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 	if (stmt->is_from || !stmt->relation)
 		goto hook;
 
-	ObjectAddressSet(addr, AuthIdRelationId, GetUserId());
-	seclabel = GetSecurityLabel(&addr, PGAN_PROVIDER);
-	if (!seclabel || strcmp(seclabel, PGAN_ROLE_ANONYMIZED) != 0)
+	if (!pgan_is_role_anonymized())
 		goto hook;
 
 	rel = relation_openrv(stmt->relation, AccessShareLock);
@@ -673,7 +678,9 @@ pgan_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 		}
 		PG_CATCH();
 		{
-			errcontext("during validation of expression \"%s\"", seclabel);
+			errcontext("during validation of expressions for anonymized table %s.%s",
+					   quote_identifier(get_namespace_name(RelationGetNamespace(rel))),
+					   quote_identifier(RelationGetRelationName(rel)));
 			PG_RE_THROW();
 		}
 		PG_END_TRY();
