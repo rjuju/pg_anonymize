@@ -390,7 +390,7 @@ pgan_get_query_for_relid(Relation rel, List *attlist, bool is_copy)
 	bool		first, found_seclabel;
 
 	/*
-	 * We only anonymize plain (possibly partitioned )relations and
+	 * We only anonymize plain (possibly partitioned) relations and
 	 * materialized views.
 	 */
 	if (rel->rd_rel->relkind != RELKIND_RELATION &&
