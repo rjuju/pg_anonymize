@@ -1,6 +1,6 @@
 EXTVERSION   = 0.0.1
 TESTS        = $(wildcard test/sql/*.sql)
-REGRESS      = $(patsubst test/sql/%.sql,%,$(TESTS))
+REGRESS      = 01_general 02_partitioning
 REGRESS_OPTS = --inputdir=test
 
 PG_CONFIG = pg_config
@@ -23,3 +23,9 @@ release-zip: all
 DATA = $(wildcard *--*.sql)
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
+
+ifneq ($(MAJORVERSION), 10)
+	REGRESS += 02_partitioning_hash
+endif
+
+REGRESS += 03_inheritance 99_cleanup
