@@ -15,6 +15,10 @@ $$ LANGUAGE plpgsql;
 
 LOAD 'pg_anonymize';
 
+-- make sure our own user isn't masked
+SELECT current_user \gset
+SECURITY LABEL FOR pg_anonymize ON ROLE :current_user IS NULL;
+
 -- test check_labels option
 SET pg_anonymize.check_labels = 'on';
 
