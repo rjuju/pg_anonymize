@@ -29,6 +29,10 @@ SELECT * FROM t_inh ORDER BY id;
   3 | root hidden
 (3 rows)
 
+COPY t_inh TO stdout;
+1	root hidden
+2	root hidden
+3	root hidden
 -- but original data from any leaf table
 SELECT * FROM t_inh_a ORDER BY id;
  id |   val   | val_a 
@@ -36,9 +40,13 @@ SELECT * FROM t_inh_a ORDER BY id;
   2 | t_inh_a | a
 (1 row)
 
+COPY t_inh_a TO stdout;
+2	t_inh_a	a
 SELECT * FROM t_inh_b ORDER BY id;
  id |   val   | val_b 
 ----+---------+-------
   3 | t_inh_b | b
 (1 row)
 
+COPY t_inh_b TO stdout;
+3	t_inh_b	b

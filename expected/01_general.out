@@ -96,6 +96,8 @@ COPY public.customer TO stdout;
 1	Nice	C*****	01-01-1970	+XXX XXXX XXXX
 COPY public.customer(first_name, phone_number) TO stdout;
 Nice	+XXX XXXX XXXX
+COPY (SELECT * FROM public.customer) TO stdout;
+1	Nice	C*****	01-01-1970	+XXX XXXX XXXX
 -- current role should see normal data when pg_anonymize isn't enabled
 SET pg_anonymize.enabled = 'off';
 SELECT * FROM public.customer;

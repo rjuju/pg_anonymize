@@ -23,6 +23,9 @@ SET pg_anonymize.enabled = 'on';
 
 --should see anonymized data when selecting from parent table
 SELECT * FROM t_inh ORDER BY id;
+COPY t_inh TO stdout;
 -- but original data from any leaf table
 SELECT * FROM t_inh_a ORDER BY id;
+COPY t_inh_a TO stdout;
 SELECT * FROM t_inh_b ORDER BY id;
+COPY t_inh_b TO stdout;

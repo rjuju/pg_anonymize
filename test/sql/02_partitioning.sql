@@ -26,10 +26,13 @@ SET pg_anonymize.enabled = 'on';
 
 --should see anonymized data when selecting from root partition
 SELECT * FROM t_part_list ORDER BY id;
+COPY t_part_list TO stdout;
 -- but original data from any leaf partition
 SELECT * FROM t_part_list_1 ORDER BY id;
+COPY t_part_list_1 TO stdout;
 -- unless there's an explicit anonymization rule on it
 SELECT * FROM t_part_list_2 ORDER BY id;
+COPY t_part_list_2 TO stdout;
 
 ---------------------
 -- range partitioning
@@ -54,10 +57,13 @@ SET pg_anonymize.enabled = 'on';
 
 --should see anonymized data when selecting from root partition
 SELECT * FROM t_part_range ORDER BY id;
+COPY t_part_range TO stdout;
 -- but original data from any leaf partition
 SELECT * FROM t_part_range_1_3 ORDER BY id;
+COPY t_part_range_1_3 TO stdout;
 -- unless there's an explicit anonymization rule on it
 SELECT * FROM t_part_range_3_5 ORDER BY id;
+COPY t_part_range_3_5 TO stdout;
 
 --------------------
 -- hash partitioning
@@ -82,7 +88,10 @@ SET pg_anonymize.enabled = 'on';
 
 --should see anonymized data when selecting from root partition
 SELECT * FROM t_part_hash ORDER BY id;
+COPY t_part_hash TO stdout;
 -- but original data from any leaf partition
 SELECT * FROM t_part_hash_0 ORDER BY id;
+COPY t_part_hash_0 TO stdout;
 -- unless there's an explicit anonymization rule on it
 SELECT * FROM t_part_hash_1 ORDER BY id;
+COPY t_part_hash_1 TO stdout;

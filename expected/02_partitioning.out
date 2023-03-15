@@ -43,6 +43,9 @@ SELECT * FROM t_part_list ORDER BY id;
   2 | root hidden
 (2 rows)
 
+COPY t_part_list TO stdout;
+1	root hidden
+2	root hidden
 -- but original data from any leaf partition
 SELECT * FROM t_part_list_1 ORDER BY id;
  id |  val   
@@ -50,6 +53,8 @@ SELECT * FROM t_part_list_1 ORDER BY id;
   1 | line 1
 (1 row)
 
+COPY t_part_list_1 TO stdout;
+1	line 1
 -- unless there's an explicit anonymization rule on it
 SELECT * FROM t_part_list_2 ORDER BY id;
  id |     val     
@@ -57,6 +62,8 @@ SELECT * FROM t_part_list_2 ORDER BY id;
   2 | part hidden
 (1 row)
 
+COPY t_part_list_2 TO stdout;
+2	part hidden
 ---------------------
 -- range partitioning
 ---------------------
@@ -104,6 +111,11 @@ SELECT * FROM t_part_range ORDER BY id;
   4 | root hidden
 (4 rows)
 
+COPY t_part_range TO stdout;
+1	root hidden
+2	root hidden
+3	root hidden
+4	root hidden
 -- but original data from any leaf partition
 SELECT * FROM t_part_range_1_3 ORDER BY id;
  id |  val   
@@ -112,6 +124,9 @@ SELECT * FROM t_part_range_1_3 ORDER BY id;
   2 | line 2
 (2 rows)
 
+COPY t_part_range_1_3 TO stdout;
+1	line 1
+2	line 2
 -- unless there's an explicit anonymization rule on it
 SELECT * FROM t_part_range_3_5 ORDER BY id;
  id |     val     
@@ -120,6 +135,9 @@ SELECT * FROM t_part_range_3_5 ORDER BY id;
   4 | part hidden
 (2 rows)
 
+COPY t_part_range_3_5 TO stdout;
+3	part hidden
+4	part hidden
 --------------------
 -- hash partitioning
 --------------------
@@ -167,6 +185,11 @@ SELECT * FROM t_part_hash ORDER BY id;
   4 | root hidden
 (4 rows)
 
+COPY t_part_hash TO stdout;
+1	root hidden
+2	root hidden
+3	root hidden
+4	root hidden
 -- but original data from any leaf partition
 SELECT * FROM t_part_hash_0 ORDER BY id;
  id |  val   
@@ -175,6 +198,9 @@ SELECT * FROM t_part_hash_0 ORDER BY id;
   2 | line 2
 (2 rows)
 
+COPY t_part_hash_0 TO stdout;
+1	line 1
+2	line 2
 -- unless there's an explicit anonymization rule on it
 SELECT * FROM t_part_hash_1 ORDER BY id;
  id |     val     
@@ -183,3 +209,6 @@ SELECT * FROM t_part_hash_1 ORDER BY id;
   4 | part hidden
 (2 rows)
 
+COPY t_part_hash_1 TO stdout;
+3	part hidden
+4	part hidden
