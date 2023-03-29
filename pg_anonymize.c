@@ -123,6 +123,7 @@ static List *pgan_get_attnums(TupleDesc tupDesc, Relation rel,
 							  List *attnamelist, bool is_copy);
 static char *pgan_get_query_for_relid(Relation rel, List *attlist,
 									  bool is_copy);
+static char **pgan_get_rel_seclabels(Relation rel);
 static bool pgan_hack_query(Node *node, void *context);
 static void pgan_hack_rte(RangeTblEntry *rte);
 static bool pgan_is_role_anonymized(void);
@@ -383,11 +384,12 @@ pgan_get_attnums(TupleDesc tupDesc, Relation rel, List *attnamelist,
 static char *
 pgan_get_query_for_relid(Relation rel, List *attlist, bool is_copy)
 {
+	char	  **seclabels;
 	List	   *attnums;
 	ListCell   *lc;
-	TupleDesc		tupdesc;
+	TupleDesc	tupdesc;
 	StringInfoData select;
-	bool		first, found_seclabel;
+	bool		first;
 
 	/*
 	 * We only anonymize plain (possibly partitioned) relations and
@@ -398,20 +400,24 @@ pgan_get_query_for_relid(Relation rel, List *attlist, bool is_copy)
 		rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
 		return NULL;
 
+	/* Fetch all the declared SECURITY LABEL on the relation. */
+	seclabels = pgan_get_rel_seclabels(rel);
+
+	/* Nothing to do if no SECURITY LABEL declared. */
+	if (seclabels == NULL)
+		return NULL;
+
 	tupdesc = RelationGetDescr(rel);
 	attnums = pgan_get_attnums(tupdesc, rel, attlist, is_copy);
 
 	initStringInfo(&select);
 	appendStringInfoString(&select, "SELECT ");
 
-	found_seclabel = false;
 	first = true;
 	foreach(lc, attnums)
 	{
-		ObjectAddress addr;
 		FormData_pg_attribute *att;
 		int attnum = lfirst_int(lc);
-		char *label;
 
 		if (!first)
 			appendStringInfoString(&select, ", ");
@@ -420,13 +426,13 @@ pgan_get_query_for_relid(Relation rel, List *attlist, bool is_copy)
 
 		att = TupleDescAttr(tupdesc, attnum - 1);
 
-		ObjectAddressSubSet(addr, RelationRelationId, RelationGetRelid(rel),
-							attnum);
-		label = GetSecurityLabel(&addr, PGAN_PROVIDER);
-		if (label)
+		/*
+		 * If the column is anonymized, emit the proper expression, otherwise
+		 * just emit the (quoted) column name.
+		 */
+		if (seclabels[attnum] != NULL)
 		{
-			found_seclabel = true;
-			appendStringInfo(&select, "%s AS %s", label,
+			appendStringInfo(&select, "%s AS %s", seclabels[attnum],
 							 quote_identifier(NameStr(att->attname)));
 		}
 		else
@@ -438,15 +444,83 @@ pgan_get_query_for_relid(Relation rel, List *attlist, bool is_copy)
 	}
 
 	/* Finish building the query if we found any security label on the table. */
-	if (found_seclabel)
+	appendStringInfo(&select, " FROM %s.%s",
+					 quote_identifier(get_namespace_name(RelationGetNamespace(rel))),
+					 quote_identifier(RelationGetRelationName(rel)));
+	return select.data;
+}
+
+/*
+ * Get all SECURITY LABELs for the given relation.
+ *
+ * This function returns an array, indexed by the underlying column attribute
+ * number, of the security labels.
+ *
+ * If the relation doesn't have any security label defined, NULL is returned.
+ */
+static char **
+pgan_get_rel_seclabels(Relation rel)
+{
+	char	  **seclabels = NULL;
+	Relation	pg_seclabel;
+	ScanKeyData keys[3];
+	SysScanDesc scan;
+	HeapTuple	tuple;
+
+	ScanKeyInit(&keys[0],
+				Anum_pg_seclabel_objoid,
+				BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(RelationGetRelid(rel)));
+	ScanKeyInit(&keys[1],
+				Anum_pg_seclabel_classoid,
+				BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(RelationRelationId));
+	ScanKeyInit(&keys[2],
+				Anum_pg_seclabel_provider,
+				BTEqualStrategyNumber, F_TEXTEQ,
+				CStringGetTextDatum(PGAN_PROVIDER));
+
+	pg_seclabel = table_open(SecLabelRelationId, AccessShareLock);
+
+	scan = systable_beginscan(pg_seclabel, SecLabelObjectIndexId, true,
+							  NULL, 3, keys);
+
+	tuple = systable_getnext(scan);
+
+	/*
+	 * Bail out if we didn't find any SECURITY LABEL for that relation, but
+	 * after the necessary cleanup.
+	 */
+	if (!HeapTupleIsValid(tuple))
+		goto cleanup;
+
+	seclabels = palloc0(sizeof(char *) *
+			/* AttrNumber is 1-based */
+			(RelationGetNumberOfAttributes(rel) + 1));
+
+	while (HeapTupleIsValid(tuple))
 	{
-		appendStringInfo(&select, " FROM %s.%s",
-						 quote_identifier(get_namespace_name(RelationGetNamespace(rel))),
-						 quote_identifier(RelationGetRelationName(rel)));
-		return select.data;
+		Datum		datum;
+		bool		isnull;
+
+		datum = heap_getattr(tuple, Anum_pg_seclabel_label,
+							 RelationGetDescr(pg_seclabel), &isnull);
+		if (!isnull)
+		{
+			int	attnum = ((FormData_pg_seclabel *) GETSTRUCT(tuple))->objsubid;
+
+			seclabels[attnum] = TextDatumGetCString(datum);
+		}
+
+		tuple = systable_getnext(scan);
 	}
-	else
-		return NULL;
+
+cleanup:
+	systable_endscan(scan);
+
+	table_close(pg_seclabel, AccessShareLock);
+
+	return seclabels;
 }
 
 /*
