@@ -19,7 +19,9 @@ SECURITY LABEL FOR pg_anonymize
 SET pg_anonymize.enabled = 'off';
 
 -- should see original data
-SELECT * FROM t_part_list ORDER BY id;
+SELECT * FROM t_inh ORDER BY id;
+SELECT * FROM t_inh_a ORDER BY id;
+SELECT * FROM t_inh_b ORDER BY id;
 
 SET pg_anonymize.enabled = 'on';
 

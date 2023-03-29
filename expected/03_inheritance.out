@@ -14,12 +14,25 @@ SECURITY LABEL FOR pg_anonymize
     ON COLUMN public.t_inh_b.val IS $$'part hidden'::text$$;
 SET pg_anonymize.enabled = 'off';
 -- should see original data
-SELECT * FROM t_part_list ORDER BY id;
- id |  val   
-----+--------
-  1 | line 1
-  2 | line 2
-(2 rows)
+SELECT * FROM t_inh ORDER BY id;
+ id |   val   
+----+---------
+  1 | t_inh
+  2 | t_inh_a
+  3 | t_inh_b
+(3 rows)
+
+SELECT * FROM t_inh_a ORDER BY id;
+ id |   val   | val_a 
+----+---------+-------
+  2 | t_inh_a | a
+(1 row)
+
+SELECT * FROM t_inh_b ORDER BY id;
+ id |   val   | val_b 
+----+---------+-------
+  3 | t_inh_b | b
+(1 row)
 
 SET pg_anonymize.enabled = 'on';
 --should see anonymized data when selecting from parent table
