@@ -71,15 +71,15 @@ SECURITY LABEL FOR pg_anonymize ON ROLE :current_user IS 'anonymize';
 
 -- current role should see anonymized data
 SELECT * FROM public.customer;
-COPY public.customer TO stdout;
-COPY public.customer(first_name, phone_number) TO stdout;
-COPY (SELECT * FROM public.customer) TO stdout;
+COPY public.customer TO STDOUT;
+COPY public.customer(first_name, phone_number) TO STDOUT;
+COPY (SELECT * FROM public.customer) TO STDOUT;
 
 -- current role should see normal data when pg_anonymize isn't enabled
 SET pg_anonymize.enabled = 'off';
 SELECT * FROM public.customer;
-COPY public.customer TO stdout;
-COPY public.customer(first_name, phone_number) TO stdout;
+COPY public.customer TO STDOUT;
+COPY public.customer(first_name, phone_number) TO STDOUT;
 
 -- cleanup
 SET pg_anonymize.enabled = 'on';

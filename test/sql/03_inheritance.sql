@@ -26,20 +26,24 @@ SET pg_anonymize.enabled = 'off';
 
 -- should see original data
 SELECT * FROM t_inh ORDER BY id;
+COPY t_inh TO STDOUT;
 SELECT * FROM t_inh_a ORDER BY id;
+COPY t_inh_a TO STDOUT;
 SELECT * FROM t_inh_b ORDER BY id;
+COPY t_inh_b TO STDOUT;
 SELECT * FROM t_inh_ab_c ORDER BY id;
+COPY t_inh_ab_c TO STDOUT;
 
 SET pg_anonymize.enabled = 'on';
 
 --should see anonymized data when selecting from parent table
 SELECT * FROM t_inh ORDER BY id;
-COPY t_inh TO stdout;
+COPY t_inh TO STDOUT;
 -- but original data from any leaf table
 SELECT * FROM t_inh_a ORDER BY id;
-COPY t_inh_a TO stdout;
+COPY t_inh_a TO STDOUT;
 -- unless there's an explicit anonymization rule on it
 SELECT * FROM t_inh_b ORDER BY id;
-COPY t_inh_b TO stdout;
+COPY t_inh_b TO STDOUT;
 SELECT * FROM t_inh_ab_c ORDER BY id;
-COPY t_inh_ab_c TO stdout;
+COPY t_inh_ab_c TO STDOUT;

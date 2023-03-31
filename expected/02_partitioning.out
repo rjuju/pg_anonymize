@@ -24,18 +24,25 @@ SELECT * FROM t_part_list ORDER BY id;
   2 | line 2
 (2 rows)
 
+COPY t_part_list TO STDOUT;
+ERROR:  cannot copy from partitioned table "t_part_list"
+HINT:  Try the COPY (SELECT ...) TO variant.
 SELECT * FROM t_part_list_1 ORDER BY id;
   val   | id 
 --------+----
  line 1 |  1
 (1 row)
 
+COPY t_part_list_1 TO STDOUT;
+line 1	1
 SELECT * FROM t_part_list_2 ORDER BY id;
   val   | id 
 --------+----
  line 2 |  2
 (1 row)
 
+COPY t_part_list_2 TO STDOUT;
+line 2	2
 SET pg_anonymize.enabled = 'on';
 --should see anonymized data when selecting from root partition
 SELECT * FROM t_part_list ORDER BY id;
@@ -45,9 +52,9 @@ SELECT * FROM t_part_list ORDER BY id;
   2 | root hidden
 (2 rows)
 
-COPY t_part_list TO stdout;
-1	root hidden
-2	root hidden
+COPY t_part_list TO STDOUT;
+ERROR:  cannot copy from partitioned table "t_part_list"
+HINT:  Try the COPY (SELECT ...) TO variant.
 -- but original data from any leaf partition
 SELECT * FROM t_part_list_1 ORDER BY id;
   val   | id 
@@ -55,7 +62,7 @@ SELECT * FROM t_part_list_1 ORDER BY id;
  line 1 |  1
 (1 row)
 
-COPY t_part_list_1 TO stdout;
+COPY t_part_list_1 TO STDOUT;
 line 1	1
 -- unless there's an explicit anonymization rule on it
 SELECT * FROM t_part_list_2 ORDER BY id;
@@ -64,7 +71,7 @@ SELECT * FROM t_part_list_2 ORDER BY id;
  part hidden |  2
 (1 row)
 
-COPY t_part_list_2 TO stdout;
+COPY t_part_list_2 TO STDOUT;
 part hidden	2
 ---------------------
 -- range partitioning
@@ -90,6 +97,9 @@ SELECT * FROM t_part_range ORDER BY id;
   4 | line 4
 (4 rows)
 
+COPY t_part_range TO STDOUT;
+ERROR:  cannot copy from partitioned table "t_part_range"
+HINT:  Try the COPY (SELECT ...) TO variant.
 SELECT * FROM t_part_range_1_3 ORDER BY id;
   val   | id 
 --------+----
@@ -97,6 +107,9 @@ SELECT * FROM t_part_range_1_3 ORDER BY id;
  line 2 |  2
 (2 rows)
 
+COPY t_part_range_1_3 TO STDOUT;
+line 1	1
+line 2	2
 SELECT * FROM t_part_range_3_5 ORDER BY id;
   val   | id 
 --------+----
@@ -104,6 +117,9 @@ SELECT * FROM t_part_range_3_5 ORDER BY id;
  line 4 |  4
 (2 rows)
 
+COPY t_part_range_3_5 TO STDOUT;
+line 3	3
+line 4	4
 SET pg_anonymize.enabled = 'on';
 --should see anonymized data when selecting from root partition
 SELECT * FROM t_part_range ORDER BY id;
@@ -115,11 +131,9 @@ SELECT * FROM t_part_range ORDER BY id;
   4 | root hidden
 (4 rows)
 
-COPY t_part_range TO stdout;
-1	root hidden
-2	root hidden
-3	root hidden
-4	root hidden
+COPY t_part_range TO STDOUT;
+ERROR:  cannot copy from partitioned table "t_part_range"
+HINT:  Try the COPY (SELECT ...) TO variant.
 -- but original data from any leaf partition
 SELECT * FROM t_part_range_1_3 ORDER BY id;
   val   | id 
@@ -128,7 +142,7 @@ SELECT * FROM t_part_range_1_3 ORDER BY id;
  line 2 |  2
 (2 rows)
 
-COPY t_part_range_1_3 TO stdout;
+COPY t_part_range_1_3 TO STDOUT;
 line 1	1
 line 2	2
 -- unless there's an explicit anonymization rule on it
@@ -139,7 +153,7 @@ SELECT * FROM t_part_range_3_5 ORDER BY id;
  part hidden |  4
 (2 rows)
 
-COPY t_part_range_3_5 TO stdout;
+COPY t_part_range_3_5 TO STDOUT;
 part hidden	3
 part hidden	4
 ----------------------
@@ -175,12 +189,17 @@ SELECT * FROM t_part_nest ORDER BY id;
   3 |   3 | line 3
 (3 rows)
 
+COPY t_part_nest TO STDOUT;
+ERROR:  cannot copy from partitioned table "t_part_nest"
+HINT:  Try the COPY (SELECT ...) TO variant.
 SELECT * FROM t_part_nest_1 ORDER BY id;
  id2 | id |  val   
 -----+----+--------
    1 |  1 | line 1
 (1 row)
 
+COPY t_part_nest_1 TO STDOUT;
+1	1	line 1
 SELECT * FROM t_part_nest_23 ORDER BY id;
   val   | id2 | id 
 --------+-----+----
@@ -188,18 +207,25 @@ SELECT * FROM t_part_nest_23 ORDER BY id;
  line 3 |   3 |  3
 (2 rows)
 
+COPY t_part_nest_23 TO STDOUT;
+ERROR:  cannot copy from partitioned table "t_part_nest_23"
+HINT:  Try the COPY (SELECT ...) TO variant.
 SELECT * FROM t_part_nest_23_2 ORDER BY id;
   val   | id | id2 
 --------+----+-----
  line 2 |  2 |   2
 (1 row)
 
+COPY t_part_nest_23_2 TO STDOUT;
+line 2	2	2
 SELECT * FROM t_part_nest_23_3 ORDER BY id;
   val   | id | id2 
 --------+----+-----
  line 3 |  3 |   3
 (1 row)
 
+COPY t_part_nest_23_3 TO STDOUT;
+line 3	3	3
 SET pg_anonymize.enabled = 'on';
 -- should see anonymized data when selecting from root partition
 SELECT * FROM t_part_nest ORDER BY id;
@@ -210,10 +236,9 @@ SELECT * FROM t_part_nest ORDER BY id;
   3 |   3 | root hidden
 (3 rows)
 
-COPY t_part_nest TO stdout;
-1	1	root hidden
-2	2	root hidden
-3	3	root hidden
+COPY t_part_nest TO STDOUT;
+ERROR:  cannot copy from partitioned table "t_part_nest"
+HINT:  Try the COPY (SELECT ...) TO variant.
 -- but original data from any leaf / subpartition
 SELECT * FROM t_part_nest_1 ORDER BY id;
  id2 | id |  val   
@@ -239,14 +264,14 @@ SELECT * FROM t_part_nest_23 ORDER BY id;
  nested hidden |   3 |  3
 (2 rows)
 
-COPY t_part_nest_23 TO stdout;
-nested hidden	2	2
-nested hidden	3	3
+COPY t_part_nest_23 TO STDOUT;
+ERROR:  cannot copy from partitioned table "t_part_nest_23"
+HINT:  Try the COPY (SELECT ...) TO variant.
 SELECT * FROM t_part_nest_23_3 ORDER BY id;
   val   | id | id2 
 --------+----+-----
  line 3 |  3 |  42
 (1 row)
 
-COPY t_part_nest_23_3 TO stdout;
+COPY t_part_nest_23_3 TO STDOUT;
 line 3	3	42

@@ -24,6 +24,9 @@ SELECT * FROM t_part_hash ORDER BY id;
   4 | line 4
 (4 rows)
 
+COPY t_part_hash TO STDOUT;
+ERROR:  cannot copy from partitioned table "t_part_hash"
+HINT:  Try the COPY (SELECT ...) TO variant.
 SELECT * FROM t_part_hash_0 ORDER BY id;
  id |  val   
 ----+--------
@@ -31,6 +34,9 @@ SELECT * FROM t_part_hash_0 ORDER BY id;
   2 | line 2
 (2 rows)
 
+COPY t_part_hash_0 TO STDOUT;
+1	line 1
+2	line 2
 SELECT * FROM t_part_hash_1 ORDER BY id;
  id |  val   
 ----+--------
@@ -38,6 +44,9 @@ SELECT * FROM t_part_hash_1 ORDER BY id;
   4 | line 4
 (2 rows)
 
+COPY t_part_hash_1 TO STDOUT;
+3	line 3
+4	line 4
 SET pg_anonymize.enabled = 'on';
 --should see anonymized data when selecting from root partition
 SELECT * FROM t_part_hash ORDER BY id;
@@ -49,11 +58,9 @@ SELECT * FROM t_part_hash ORDER BY id;
   4 | root hidden
 (4 rows)
 
-COPY t_part_hash TO stdout;
-1	root hidden
-2	root hidden
-3	root hidden
-4	root hidden
+COPY t_part_hash TO STDOUT;
+ERROR:  cannot copy from partitioned table "t_part_hash"
+HINT:  Try the COPY (SELECT ...) TO variant.
 -- but original data from any leaf partition
 SELECT * FROM t_part_hash_0 ORDER BY id;
  id |  val   
@@ -62,7 +69,7 @@ SELECT * FROM t_part_hash_0 ORDER BY id;
   2 | line 2
 (2 rows)
 
-COPY t_part_hash_0 TO stdout;
+COPY t_part_hash_0 TO STDOUT;
 1	line 1
 2	line 2
 -- unless there's an explicit anonymization rule on it
@@ -73,6 +80,6 @@ SELECT * FROM t_part_hash_1 ORDER BY id;
   4 | part hidden
 (2 rows)
 
-COPY t_part_hash_1 TO stdout;
+COPY t_part_hash_1 TO STDOUT;
 3	part hidden
 4	part hidden

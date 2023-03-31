@@ -21,20 +21,23 @@ SET pg_anonymize.enabled = 'off';
 
 -- should see original data
 SELECT * FROM t_part_list ORDER BY id;
+COPY t_part_list TO STDOUT;
 SELECT * FROM t_part_list_1 ORDER BY id;
+COPY t_part_list_1 TO STDOUT;
 SELECT * FROM t_part_list_2 ORDER BY id;
+COPY t_part_list_2 TO STDOUT;
 
 SET pg_anonymize.enabled = 'on';
 
 --should see anonymized data when selecting from root partition
 SELECT * FROM t_part_list ORDER BY id;
-COPY t_part_list TO stdout;
+COPY t_part_list TO STDOUT;
 -- but original data from any leaf partition
 SELECT * FROM t_part_list_1 ORDER BY id;
-COPY t_part_list_1 TO stdout;
+COPY t_part_list_1 TO STDOUT;
 -- unless there's an explicit anonymization rule on it
 SELECT * FROM t_part_list_2 ORDER BY id;
-COPY t_part_list_2 TO stdout;
+COPY t_part_list_2 TO STDOUT;
 
 ---------------------
 -- range partitioning
@@ -54,20 +57,23 @@ SET pg_anonymize.enabled = 'off';
 
 -- should see original data
 SELECT * FROM t_part_range ORDER BY id;
+COPY t_part_range TO STDOUT;
 SELECT * FROM t_part_range_1_3 ORDER BY id;
+COPY t_part_range_1_3 TO STDOUT;
 SELECT * FROM t_part_range_3_5 ORDER BY id;
+COPY t_part_range_3_5 TO STDOUT;
 
 SET pg_anonymize.enabled = 'on';
 
 --should see anonymized data when selecting from root partition
 SELECT * FROM t_part_range ORDER BY id;
-COPY t_part_range TO stdout;
+COPY t_part_range TO STDOUT;
 -- but original data from any leaf partition
 SELECT * FROM t_part_range_1_3 ORDER BY id;
-COPY t_part_range_1_3 TO stdout;
+COPY t_part_range_1_3 TO STDOUT;
 -- unless there's an explicit anonymization rule on it
 SELECT * FROM t_part_range_3_5 ORDER BY id;
-COPY t_part_range_3_5 TO stdout;
+COPY t_part_range_3_5 TO STDOUT;
 
 ----------------------
 -- nested partitioning
@@ -98,16 +104,21 @@ SET pg_anonymize.enabled = 'off';
 
 -- should see original data
 SELECT * FROM t_part_nest ORDER BY id;
+COPY t_part_nest TO STDOUT;
 SELECT * FROM t_part_nest_1 ORDER BY id;
+COPY t_part_nest_1 TO STDOUT;
 SELECT * FROM t_part_nest_23 ORDER BY id;
+COPY t_part_nest_23 TO STDOUT;
 SELECT * FROM t_part_nest_23_2 ORDER BY id;
+COPY t_part_nest_23_2 TO STDOUT;
 SELECT * FROM t_part_nest_23_3 ORDER BY id;
+COPY t_part_nest_23_3 TO STDOUT;
 
 SET pg_anonymize.enabled = 'on';
 
 -- should see anonymized data when selecting from root partition
 SELECT * FROM t_part_nest ORDER BY id;
-COPY t_part_nest TO stdout;
+COPY t_part_nest TO STDOUT;
 -- but original data from any leaf / subpartition
 SELECT * FROM t_part_nest_1 ORDER BY id;
 COPY t_part_nest_1 TO STDOUT;
@@ -115,6 +126,6 @@ SELECT * FROM t_part_nest_23_2 ORDER BY id;
 COPY t_part_nest_23_2 TO STDOUT;
 -- unless there's an explicit anonymization rule for it
 SELECT * FROM t_part_nest_23 ORDER BY id;
-COPY t_part_nest_23 TO stdout;
+COPY t_part_nest_23 TO STDOUT;
 SELECT * FROM t_part_nest_23_3 ORDER BY id;
-COPY t_part_nest_23_3 TO stdout;
+COPY t_part_nest_23_3 TO STDOUT;

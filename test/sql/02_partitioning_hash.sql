@@ -19,17 +19,20 @@ SET pg_anonymize.enabled = 'off';
 
 -- should see original data
 SELECT * FROM t_part_hash ORDER BY id;
+COPY t_part_hash TO STDOUT;
 SELECT * FROM t_part_hash_0 ORDER BY id;
+COPY t_part_hash_0 TO STDOUT;
 SELECT * FROM t_part_hash_1 ORDER BY id;
+COPY t_part_hash_1 TO STDOUT;
 
 SET pg_anonymize.enabled = 'on';
 
 --should see anonymized data when selecting from root partition
 SELECT * FROM t_part_hash ORDER BY id;
-COPY t_part_hash TO stdout;
+COPY t_part_hash TO STDOUT;
 -- but original data from any leaf partition
 SELECT * FROM t_part_hash_0 ORDER BY id;
-COPY t_part_hash_0 TO stdout;
+COPY t_part_hash_0 TO STDOUT;
 -- unless there's an explicit anonymization rule on it
 SELECT * FROM t_part_hash_1 ORDER BY id;
-COPY t_part_hash_1 TO stdout;
+COPY t_part_hash_1 TO STDOUT;

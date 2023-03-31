@@ -36,6 +36,8 @@ SELECT * FROM t_inh ORDER BY id;
   4 | t_inh_c
 (4 rows)
 
+COPY t_inh TO STDOUT;
+1	t_inh
 SELECT * FROM t_inh_a ORDER BY id;
  id |   val   |  val_a  
 ----+---------+---------
@@ -43,6 +45,8 @@ SELECT * FROM t_inh_a ORDER BY id;
   4 | t_inh_c | t_inh_c
 (2 rows)
 
+COPY t_inh_a TO STDOUT;
+2	t_inh_a	a
 SELECT * FROM t_inh_b ORDER BY id;
  id |   val   |  val_b  
 ----+---------+---------
@@ -50,12 +54,16 @@ SELECT * FROM t_inh_b ORDER BY id;
   4 | t_inh_c | t_inh_c
 (2 rows)
 
+COPY t_inh_b TO STDOUT;
+3	t_inh_b	b
 SELECT * FROM t_inh_ab_c ORDER BY id;
  id |   val   |  val_a  |  val_b  | val_c 
 ----+---------+---------+---------+-------
   4 | t_inh_c | t_inh_c | t_inh_c | c
 (1 row)
 
+COPY t_inh_ab_c TO STDOUT;
+4	t_inh_c	t_inh_c	t_inh_c	c
 SET pg_anonymize.enabled = 'on';
 --should see anonymized data when selecting from parent table
 SELECT * FROM t_inh ORDER BY id;
@@ -67,11 +75,8 @@ SELECT * FROM t_inh ORDER BY id;
   4 | root hidden
 (4 rows)
 
-COPY t_inh TO stdout;
+COPY t_inh TO STDOUT;
 1	root hidden
-2	root hidden
-3	root hidden
-4	root hidden
 -- but original data from any leaf table
 SELECT * FROM t_inh_a ORDER BY id;
  id |   val   |  val_a  
@@ -80,7 +85,7 @@ SELECT * FROM t_inh_a ORDER BY id;
   4 | t_inh_c | t_inh_c
 (2 rows)
 
-COPY t_inh_a TO stdout;
+COPY t_inh_a TO STDOUT;
 2	t_inh_a	a
 -- unless there's an explicit anonymization rule on it
 SELECT * FROM t_inh_b ORDER BY id;
@@ -90,14 +95,13 @@ SELECT * FROM t_inh_b ORDER BY id;
   4 | part hidden | t_inh_c
 (2 rows)
 
-COPY t_inh_b TO stdout;
+COPY t_inh_b TO STDOUT;
 3	part hidden	b
-4	part hidden	t_inh_c
 SELECT * FROM t_inh_ab_c ORDER BY id;
  id |   val   |  val_a  |  val_b  |     val_c     
 ----+---------+---------+---------+---------------
   4 | t_inh_c | t_inh_c | t_inh_c | part c hidden
 (1 row)
 
-COPY t_inh_ab_c TO stdout;
+COPY t_inh_ab_c TO STDOUT;
 4	t_inh_c	t_inh_c	t_inh_c	part c hidden

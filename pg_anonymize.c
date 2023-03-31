@@ -400,6 +400,10 @@ pgan_get_query_for_relid(Relation rel, List *attlist, bool is_copy)
 		rel->rd_rel->relkind != RELKIND_PARTITIONED_TABLE)
 		return NULL;
 
+	/* COPY isn't allowed for partitioned table. */
+	if (is_copy && rel->rd_rel->relkind == RELKIND_PARTITIONED_TABLE)
+		return NULL;
+
 	/* Fetch all the declared SECURITY LABEL on the relation. */
 	seclabels = pgan_get_rel_seclabels(rel);
 
@@ -444,7 +448,8 @@ pgan_get_query_for_relid(Relation rel, List *attlist, bool is_copy)
 	}
 
 	/* Finish building the query if we found any security label on the table. */
-	appendStringInfo(&select, " FROM %s.%s",
+	appendStringInfo(&select, " FROM%s %s.%s",
+					 (is_copy ? " ONLY" : ""),
 					 quote_identifier(get_namespace_name(RelationGetNamespace(rel))),
 					 quote_identifier(RelationGetRelationName(rel)));
 	return select.data;
