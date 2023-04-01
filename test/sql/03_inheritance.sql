@@ -35,15 +35,27 @@ SELECT * FROM t_inh_ab_c ORDER BY id;
 COPY t_inh_ab_c TO STDOUT;
 
 SET pg_anonymize.enabled = 'on';
+SET pg_anonymize.inherit_labels = false;
 
 --should see anonymized data when selecting from parent table
 SELECT * FROM t_inh ORDER BY id;
 COPY t_inh TO STDOUT;
--- but original data from any leaf table
+-- but original data from any leaf table when label inheritance is disabled
 SELECT * FROM t_inh_a ORDER BY id;
 COPY t_inh_a TO STDOUT;
 -- unless there's an explicit anonymization rule on it
 SELECT * FROM t_inh_b ORDER BY id;
 COPY t_inh_b TO STDOUT;
+SELECT * FROM t_inh_ab_c ORDER BY id;
+COPY t_inh_ab_c TO STDOUT;
+
+SET pg_anonymize.inherit_labels = true;
+-- should see anonymized data from inherited security labels
+SELECT * FROM t_inh_a ORDER BY id;
+COPY t_inh_a TO STDOUT;
+-- the same anonymized data where inherited label would conflict
+SELECT * FROM t_inh_b ORDER BY id;
+COPY t_inh_b TO STDOUT;
+-- and a mix or local and inherited label
 SELECT * FROM t_inh_ab_c ORDER BY id;
 COPY t_inh_ab_c TO STDOUT;

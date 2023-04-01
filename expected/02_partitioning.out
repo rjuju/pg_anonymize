@@ -44,6 +44,7 @@ SELECT * FROM t_part_list_2 ORDER BY id;
 COPY t_part_list_2 TO STDOUT;
 line 2	2
 SET pg_anonymize.enabled = 'on';
+SET pg_anonymize.inherit_labels = false;
 --should see anonymized data when selecting from root partition
 SELECT * FROM t_part_list ORDER BY id;
  id |     val     
@@ -55,7 +56,7 @@ SELECT * FROM t_part_list ORDER BY id;
 COPY t_part_list TO STDOUT;
 ERROR:  cannot copy from partitioned table "t_part_list"
 HINT:  Try the COPY (SELECT ...) TO variant.
--- but original data from any leaf partition
+-- but original data from any leaf partition when label inheritance is disabled
 SELECT * FROM t_part_list_1 ORDER BY id;
   val   | id 
 --------+----
@@ -65,6 +66,25 @@ SELECT * FROM t_part_list_1 ORDER BY id;
 COPY t_part_list_1 TO STDOUT;
 line 1	1
 -- unless there's an explicit anonymization rule on it
+SELECT * FROM t_part_list_2 ORDER BY id;
+     val     | id 
+-------------+----
+ part hidden |  2
+(1 row)
+
+COPY t_part_list_2 TO STDOUT;
+part hidden	2
+SET pg_anonymize.inherit_labels = true;
+-- should see anonymized data from inherited security labels
+SELECT * FROM t_part_list_1 ORDER BY id;
+     val     | id 
+-------------+----
+ root hidden |  1
+(1 row)
+
+COPY t_part_list_1 TO STDOUT;
+root hidden	1
+-- and still see same anonymized data
 SELECT * FROM t_part_list_2 ORDER BY id;
      val     | id 
 -------------+----
@@ -121,6 +141,7 @@ COPY t_part_range_3_5 TO STDOUT;
 line 3	3
 line 4	4
 SET pg_anonymize.enabled = 'on';
+SET pg_anonymize.inherit_labels = false;
 --should see anonymized data when selecting from root partition
 SELECT * FROM t_part_range ORDER BY id;
  id |     val     
@@ -134,7 +155,7 @@ SELECT * FROM t_part_range ORDER BY id;
 COPY t_part_range TO STDOUT;
 ERROR:  cannot copy from partitioned table "t_part_range"
 HINT:  Try the COPY (SELECT ...) TO variant.
--- but original data from any leaf partition
+-- but original data from any leaf partition when label inheritance is disabled
 SELECT * FROM t_part_range_1_3 ORDER BY id;
   val   | id 
 --------+----
@@ -146,6 +167,29 @@ COPY t_part_range_1_3 TO STDOUT;
 line 1	1
 line 2	2
 -- unless there's an explicit anonymization rule on it
+SELECT * FROM t_part_range_3_5 ORDER BY id;
+     val     | id 
+-------------+----
+ part hidden |  3
+ part hidden |  4
+(2 rows)
+
+COPY t_part_range_3_5 TO STDOUT;
+part hidden	3
+part hidden	4
+SET pg_anonymize.inherit_labels = true;
+-- should see anonymized data from inherited security labels
+SELECT * FROM t_part_range_1_3 ORDER BY id;
+     val     | id 
+-------------+----
+ root hidden |  1
+ root hidden |  2
+(2 rows)
+
+COPY t_part_range_1_3 TO STDOUT;
+root hidden	1
+root hidden	2
+-- and still see same anonymized data
 SELECT * FROM t_part_range_3_5 ORDER BY id;
      val     | id 
 -------------+----
@@ -227,6 +271,7 @@ SELECT * FROM t_part_nest_23_3 ORDER BY id;
 COPY t_part_nest_23_3 TO STDOUT;
 line 3	3	3
 SET pg_anonymize.enabled = 'on';
+SET pg_anonymize.inherit_labels = false;
 -- should see anonymized data when selecting from root partition
 SELECT * FROM t_part_nest ORDER BY id;
  id | id2 |     val     
@@ -239,7 +284,8 @@ SELECT * FROM t_part_nest ORDER BY id;
 COPY t_part_nest TO STDOUT;
 ERROR:  cannot copy from partitioned table "t_part_nest"
 HINT:  Try the COPY (SELECT ...) TO variant.
--- but original data from any leaf / subpartition
+-- but original data from any leaf / subpartition when label inheritance is
+-- disabled
 SELECT * FROM t_part_nest_1 ORDER BY id;
  id2 | id |  val   
 -----+----+--------
@@ -275,3 +321,41 @@ SELECT * FROM t_part_nest_23_3 ORDER BY id;
 
 COPY t_part_nest_23_3 TO STDOUT;
 line 3	3	42
+SET pg_anonymize.inherit_labels = true;
+-- should see anonymized data from inherited security labels
+SELECT * FROM t_part_nest_1 ORDER BY id;
+ id2 | id |     val     
+-----+----+-------------
+   1 |  1 | root hidden
+(1 row)
+
+COPY t_part_nest_1 TO STDOUT;
+1	1	root hidden
+SELECT * FROM t_part_nest_23_2 ORDER BY id;
+      val      | id | id2 
+---------------+----+-----
+ nested hidden |  2 |   2
+(1 row)
+
+COPY t_part_nest_23_2 TO STDOUT;
+nested hidden	2	2
+-- and still see same anonymized data for some table
+SELECT * FROM t_part_nest_23 ORDER BY id;
+      val      | id2 | id 
+---------------+-----+----
+ nested hidden |   2 |  2
+ nested hidden |   3 |  3
+(2 rows)
+
+COPY t_part_nest_23 TO STDOUT;
+ERROR:  cannot copy from partitioned table "t_part_nest_23"
+HINT:  Try the COPY (SELECT ...) TO variant.
+-- and a mix of inherited and non inherited anonymized data
+SELECT * FROM t_part_nest_23_3 ORDER BY id;
+      val      | id | id2 
+---------------+----+-----
+ nested hidden |  3 |  42
+(1 row)
+
+COPY t_part_nest_23_3 TO STDOUT;
+nested hidden	3	42

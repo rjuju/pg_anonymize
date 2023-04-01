@@ -26,13 +26,22 @@ SELECT * FROM t_part_hash_1 ORDER BY id;
 COPY t_part_hash_1 TO STDOUT;
 
 SET pg_anonymize.enabled = 'on';
+SET pg_anonymize.inherit_labels = false;
 
 --should see anonymized data when selecting from root partition
 SELECT * FROM t_part_hash ORDER BY id;
 COPY t_part_hash TO STDOUT;
--- but original data from any leaf partition
+-- but original data from any leaf partition when label inheritance is disabled
 SELECT * FROM t_part_hash_0 ORDER BY id;
 COPY t_part_hash_0 TO STDOUT;
 -- unless there's an explicit anonymization rule on it
+SELECT * FROM t_part_hash_1 ORDER BY id;
+COPY t_part_hash_1 TO STDOUT;
+
+SET pg_anonymize.inherit_labels = true;
+-- should see anonymized data from inherited security labels
+SELECT * FROM t_part_hash_0 ORDER BY id;
+COPY t_part_hash_0 TO STDOUT;
+-- and still see same anonymized data
 SELECT * FROM t_part_hash_1 ORDER BY id;
 COPY t_part_hash_1 TO STDOUT;

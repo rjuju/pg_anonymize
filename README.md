@@ -50,6 +50,10 @@ pg_anonymize provides the following configuration options:
   validity, read-only, returned type and lack of SQL injection) on the defined
   expression when declaring security labels.  The default value is **on**.
 
+- **pg_anonymize.inherit_labels** (bool): inherit security labels from relation
+  ancestors (partitioned tables and inheritance tables) if any.  The default
+  value is **on**.
+
 NOTE: even if **pg_anonymize.check_labels** is disabled, pg_anonymize will
 still check that the defined expression doesn't contain any SQL injection.
 

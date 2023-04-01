@@ -37,6 +37,7 @@
 #include "catalog/indexing.h"
 #endif
 #include "catalog/pg_authid.h"
+#include "catalog/pg_inherits.h"
 #if PG_VERSION_NUM >= 110000
 #include "catalog/pg_namespace_d.h"
 #else
@@ -79,14 +80,70 @@ PG_MODULE_MAGIC;
 #define MarkGUCPrefixReserved(c) EmitWarningsOnPlaceholders(c)
 #endif
 
+/* Reimplement some AttrMap features to keep later code simpler. */
+#if PG_VERSION_NUM < 130000
+#include "access/tupconvert.h"
+typedef struct AttrMap
+{
+	AttrNumber *attnums;
+	int			maplen;
+} AttrMap;
+
+static AttrMap *
+build_attrmap_by_name_if_req(TupleDesc indesc, TupleDesc outdesc)
+{
+	AttrMap    *attrMap;
+	AttrNumber *attnums;
+
+#if PG_VERSION_NUM >= 120000
+	attnums = convert_tuples_by_name_map_if_req(indesc, outdesc,
+												"could not convert row type");
+#else
+	/* pg11- doesn't expose the "_if_req" part */
+	attnums = convert_tuples_by_name_map(indesc, outdesc,
+												"could not convert row type");
+#endif
+
+	if (attnums != NULL)
+	{
+		attrMap = (AttrMap *) palloc(sizeof(AttrMap));
+
+		attrMap->attnums = attnums;
+		attrMap->maplen = outdesc->natts;
+	}
+	else
+		attrMap = NULL;
+
+	return attrMap;
+}
+
+static void
+free_attrmap(AttrMap *attrMap)
+{
+	pfree(attrMap->attnums);
+	pfree(attrMap);
+}
+#endif
+
+/* Used for pgan_get_rel_seclabels_worker() */
+typedef struct pganWalkerContext
+{
+	Relation secRel;		/* Cached pg_seclabel relation */
+	Relation inhRel;		/* Cached pg_inherits relation */
+	char  **seclabels;		/* The array of found security labels */
+	int		nb_labels;		/* # of columns for which we found a seclabel */
+	TupleDesc tupdesc;		/* The original relation tupledesc */
+} pganWalkerContext;
+
 /*---- Local variables ----*/
 
 bool pgan_toplevel = true;
 
 /*---- GUC variables ----*/
 
-static bool pgan_check_labels;
-static bool pgan_enabled;
+static bool pgan_check_labels = true;
+static bool pgan_inherit_labels = true;
+static bool pgan_enabled = true;
 
 /*---- Function declarations ----*/
 
@@ -126,6 +183,8 @@ static List *pgan_get_attnums(TupleDesc tupDesc, Relation rel,
 static char *pgan_get_query_for_relid(Relation rel, List *attlist,
 									  bool is_copy);
 static char **pgan_get_rel_seclabels(Relation rel);
+static void pgan_get_rel_seclabels_worker(Relation rel,
+										  pganWalkerContext *context);
 static bool pgan_hack_query(Node *node, void *context);
 static void pgan_hack_rte(RangeTblEntry *rte);
 static bool pgan_is_role_anonymized(void);
@@ -181,6 +240,17 @@ _PG_init(void)
 							 "Globally enable pg_anonymize.",
 							 NULL,
 							 &pgan_enabled,
+							 true,
+							 PGC_SUSET,
+							 0,
+							 NULL,
+							 NULL,
+							 NULL);
+
+	DefineCustomBoolVariable("pg_anonymize.inherit_labels",
+							 "Also use security label from parents if any.",
+							 NULL,
+							 &pgan_inherit_labels,
 							 true,
 							 PGC_SUSET,
 							 0,
@@ -538,8 +608,45 @@ pgan_get_query_for_relid(Relation rel, List *attlist, bool is_copy)
 static char **
 pgan_get_rel_seclabels(Relation rel)
 {
-	char	  **seclabels = NULL;
-	Relation	pg_seclabel;
+	pganWalkerContext *context;
+
+	context = (pganWalkerContext *) palloc0(sizeof(pganWalkerContext));
+
+	context->secRel = table_open(SecLabelRelationId, AccessShareLock);
+
+	/* The worker function does all the work. */
+	pgan_get_rel_seclabels_worker(rel, context);
+
+	table_close(context->secRel, AccessShareLock);
+
+	if (context->inhRel)
+		table_close(context->inhRel, AccessShareLock);
+
+	if (context->nb_labels == 0)
+		return NULL;
+
+	return context->seclabels;
+}
+
+/*
+ * Function that looks for security labels for the given relation, and any of
+ * its ancestor(s).
+ *
+ * This function will recurse, using a depth-first search, for all the given
+ * relation ancestor(s) (if any) until either a security label has been found
+ * for all columns of the original relation, or no more ancestor exist.
+ *
+ * Caller is responsible for opening and caching pg_catalog in secRel, with the
+ * rest of the members zero-initialized.  This function will allocate the
+ * seclabel array only if nb_labels is not zero and may open and cache
+ * pg_inherits in inhRel.  Caller is also responsible for checking if inhRel is
+ * cached and closing it in that case.
+ */
+static void
+pgan_get_rel_seclabels_worker(Relation rel, pganWalkerContext *context)
+{
+	TupleDesc	tupdesc;
+	AttrMap	   *attrMap;
 	ScanKeyData keys[3];
 	SysScanDesc scan;
 	HeapTuple	tuple;
@@ -557,23 +664,49 @@ pgan_get_rel_seclabels(Relation rel)
 				BTEqualStrategyNumber, F_TEXTEQ,
 				CStringGetTextDatum(PGAN_PROVIDER));
 
-	pg_seclabel = table_open(SecLabelRelationId, AccessShareLock);
-
-	scan = systable_beginscan(pg_seclabel, SecLabelObjectIndexId, true,
+	scan = systable_beginscan(context->secRel, SecLabelObjectIndexId, true,
 							  NULL, 3, keys);
 
 	tuple = systable_getnext(scan);
 
 	/*
-	 * Bail out if we didn't find any SECURITY LABEL for that relation, but
-	 * after the necessary cleanup.
+	 * Bail out if we didn't find any SECURITY LABEL for that relation and user
+	 * don't want to inherit security labels, but after the necessary cleanup.
 	 */
-	if (!HeapTupleIsValid(tuple))
-		goto cleanup;
+	if (!HeapTupleIsValid(tuple) && !pgan_inherit_labels)
+	{
+		systable_endscan(scan);
+		return;
+	}
 
-	seclabels = palloc0(sizeof(char *) *
-			/* AttrNumber is 1-based */
-			(RelationGetNumberOfAttributes(rel) + 1));
+	tupdesc = RelationGetDescr(rel);
+
+	/*
+	 * If this is the first call, we're passed the original relation.  In that
+	 * case we save a copy of its tupledesc and allocate the seclabel array.
+	 * Otherwise, we need to build an AttrMap as there's no guarantee that the
+	 * original relation and the current ancestor have the same tuple
+	 * descriptor.
+	 */
+	if (context->tupdesc == NULL)
+	{
+		context->tupdesc = CreateTupleDescCopy(tupdesc);
+		/* No map needed. */
+		attrMap = NULL;
+
+		context->seclabels = palloc0(sizeof(char *) *
+				/* AttrNumber is 1-based */
+				(RelationGetNumberOfAttributes(rel) + 1));
+	}
+	else
+	{
+		attrMap = build_attrmap_by_name_if_req(context->tupdesc,
+											   tupdesc
+#if PG_VERSION_NUM >= 160000
+											   , false
+#endif
+											   );
+	}
 
 	while (HeapTupleIsValid(tuple))
 	{
@@ -581,23 +714,70 @@ pgan_get_rel_seclabels(Relation rel)
 		bool		isnull;
 
 		datum = heap_getattr(tuple, Anum_pg_seclabel_label,
-							 RelationGetDescr(pg_seclabel), &isnull);
+							 RelationGetDescr(context->secRel), &isnull);
 		if (!isnull)
 		{
 			int	attnum = ((FormData_pg_seclabel *) GETSTRUCT(tuple))->objsubid;
 
-			seclabels[attnum] = TextDatumGetCString(datum);
+			/* If an AttrMap was build, get the mapped AttrNumber. */
+			if (attrMap)
+			{
+				Assert(attnum <= attrMap->maplen);
+				attnum = attrMap->attnums[attnum - 1];
+				Assert(attnum <= context->tupdesc->natts);
+			}
+
+			/* Don't overload an existing security label. */
+			if (context->seclabels[attnum] == NULL)
+			{
+				context->seclabels[attnum] = TextDatumGetCString(datum);
+				context->nb_labels++;
+			}
 		}
 
 		tuple = systable_getnext(scan);
 	}
-
-cleanup:
 	systable_endscan(scan);
 
-	table_close(pg_seclabel, AccessShareLock);
+	if (attrMap)
+		free_attrmap(attrMap);
 
-	return seclabels;
+	/*
+	 * If we found a security label for all columns of the ancestor relation,
+	 * or user don't want to inherit security labels, we're done!
+	 */
+	if (context->nb_labels == context->tupdesc->natts ||
+		!pgan_inherit_labels)
+	{
+		return;
+	}
+
+	/* Check if we need to inherit security labels from ancestor */
+	if (context->inhRel == NULL)
+		context->inhRel = table_open(InheritsRelationId, AccessShareLock);
+
+	ScanKeyInit(&keys[0],
+				Anum_pg_inherits_inhrelid,
+				BTEqualStrategyNumber, F_OIDEQ,
+				ObjectIdGetDatum(RelationGetRelid(rel)));
+
+	scan = systable_beginscan(context->inhRel, InheritsRelidSeqnoIndexId, true,
+							  NULL, 1, keys);
+
+	/* Iterate over all ancestors if any, using a depth-first search. */
+	while ((tuple = systable_getnext(scan)) != NULL)
+	{
+		Form_pg_inherits inh = (Form_pg_inherits) GETSTRUCT(tuple);
+		Oid			inhparent = inh->inhparent;
+		Relation	parentRel;
+
+		parentRel = table_open(inhparent, AccessShareLock);
+
+		pgan_get_rel_seclabels_worker(parentRel, context);
+
+		table_close(parentRel, AccessShareLock);
+	}
+	systable_endscan(scan);
 }
 
 /*

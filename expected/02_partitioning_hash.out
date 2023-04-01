@@ -48,6 +48,7 @@ COPY t_part_hash_1 TO STDOUT;
 3	line 3
 4	line 4
 SET pg_anonymize.enabled = 'on';
+SET pg_anonymize.inherit_labels = false;
 --should see anonymized data when selecting from root partition
 SELECT * FROM t_part_hash ORDER BY id;
  id |     val     
@@ -61,7 +62,7 @@ SELECT * FROM t_part_hash ORDER BY id;
 COPY t_part_hash TO STDOUT;
 ERROR:  cannot copy from partitioned table "t_part_hash"
 HINT:  Try the COPY (SELECT ...) TO variant.
--- but original data from any leaf partition
+-- but original data from any leaf partition when label inheritance is disabled
 SELECT * FROM t_part_hash_0 ORDER BY id;
  id |  val   
 ----+--------
@@ -73,6 +74,29 @@ COPY t_part_hash_0 TO STDOUT;
 1	line 1
 2	line 2
 -- unless there's an explicit anonymization rule on it
+SELECT * FROM t_part_hash_1 ORDER BY id;
+ id |     val     
+----+-------------
+  3 | part hidden
+  4 | part hidden
+(2 rows)
+
+COPY t_part_hash_1 TO STDOUT;
+3	part hidden
+4	part hidden
+SET pg_anonymize.inherit_labels = true;
+-- should see anonymized data from inherited security labels
+SELECT * FROM t_part_hash_0 ORDER BY id;
+ id |     val     
+----+-------------
+  1 | root hidden
+  2 | root hidden
+(2 rows)
+
+COPY t_part_hash_0 TO STDOUT;
+1	root hidden
+2	root hidden
+-- and still see same anonymized data
 SELECT * FROM t_part_hash_1 ORDER BY id;
  id |     val     
 ----+-------------

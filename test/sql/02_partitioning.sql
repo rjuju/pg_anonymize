@@ -28,14 +28,23 @@ SELECT * FROM t_part_list_2 ORDER BY id;
 COPY t_part_list_2 TO STDOUT;
 
 SET pg_anonymize.enabled = 'on';
+SET pg_anonymize.inherit_labels = false;
 
 --should see anonymized data when selecting from root partition
 SELECT * FROM t_part_list ORDER BY id;
 COPY t_part_list TO STDOUT;
--- but original data from any leaf partition
+-- but original data from any leaf partition when label inheritance is disabled
 SELECT * FROM t_part_list_1 ORDER BY id;
 COPY t_part_list_1 TO STDOUT;
 -- unless there's an explicit anonymization rule on it
+SELECT * FROM t_part_list_2 ORDER BY id;
+COPY t_part_list_2 TO STDOUT;
+
+SET pg_anonymize.inherit_labels = true;
+-- should see anonymized data from inherited security labels
+SELECT * FROM t_part_list_1 ORDER BY id;
+COPY t_part_list_1 TO STDOUT;
+-- and still see same anonymized data
 SELECT * FROM t_part_list_2 ORDER BY id;
 COPY t_part_list_2 TO STDOUT;
 
@@ -64,14 +73,23 @@ SELECT * FROM t_part_range_3_5 ORDER BY id;
 COPY t_part_range_3_5 TO STDOUT;
 
 SET pg_anonymize.enabled = 'on';
+SET pg_anonymize.inherit_labels = false;
 
 --should see anonymized data when selecting from root partition
 SELECT * FROM t_part_range ORDER BY id;
 COPY t_part_range TO STDOUT;
--- but original data from any leaf partition
+-- but original data from any leaf partition when label inheritance is disabled
 SELECT * FROM t_part_range_1_3 ORDER BY id;
 COPY t_part_range_1_3 TO STDOUT;
 -- unless there's an explicit anonymization rule on it
+SELECT * FROM t_part_range_3_5 ORDER BY id;
+COPY t_part_range_3_5 TO STDOUT;
+
+SET pg_anonymize.inherit_labels = true;
+-- should see anonymized data from inherited security labels
+SELECT * FROM t_part_range_1_3 ORDER BY id;
+COPY t_part_range_1_3 TO STDOUT;
+-- and still see same anonymized data
 SELECT * FROM t_part_range_3_5 ORDER BY id;
 COPY t_part_range_3_5 TO STDOUT;
 
@@ -115,11 +133,13 @@ SELECT * FROM t_part_nest_23_3 ORDER BY id;
 COPY t_part_nest_23_3 TO STDOUT;
 
 SET pg_anonymize.enabled = 'on';
+SET pg_anonymize.inherit_labels = false;
 
 -- should see anonymized data when selecting from root partition
 SELECT * FROM t_part_nest ORDER BY id;
 COPY t_part_nest TO STDOUT;
--- but original data from any leaf / subpartition
+-- but original data from any leaf / subpartition when label inheritance is
+-- disabled
 SELECT * FROM t_part_nest_1 ORDER BY id;
 COPY t_part_nest_1 TO STDOUT;
 SELECT * FROM t_part_nest_23_2 ORDER BY id;
@@ -127,5 +147,18 @@ COPY t_part_nest_23_2 TO STDOUT;
 -- unless there's an explicit anonymization rule for it
 SELECT * FROM t_part_nest_23 ORDER BY id;
 COPY t_part_nest_23 TO STDOUT;
+SELECT * FROM t_part_nest_23_3 ORDER BY id;
+COPY t_part_nest_23_3 TO STDOUT;
+
+SET pg_anonymize.inherit_labels = true;
+-- should see anonymized data from inherited security labels
+SELECT * FROM t_part_nest_1 ORDER BY id;
+COPY t_part_nest_1 TO STDOUT;
+SELECT * FROM t_part_nest_23_2 ORDER BY id;
+COPY t_part_nest_23_2 TO STDOUT;
+-- and still see same anonymized data for some table
+SELECT * FROM t_part_nest_23 ORDER BY id;
+COPY t_part_nest_23 TO STDOUT;
+-- and a mix of inherited and non inherited anonymized data
 SELECT * FROM t_part_nest_23_3 ORDER BY id;
 COPY t_part_nest_23_3 TO STDOUT;
