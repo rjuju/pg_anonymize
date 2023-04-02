@@ -60,6 +60,7 @@
 #include "utils/memutils.h"
 #include "utils/rel.h"
 #include "utils/syscache.h"
+#include "utils/varlena.h"
 
 
 PG_MODULE_MAGIC;
@@ -119,6 +120,7 @@ static void pgan_check_injection(Relation rel,
 static void pgan_check_expression_valid(Relation rel,
 										const ObjectAddress *object,
 										const char *seclabel);
+static void pgan_check_preload_lib(char *libnames, char *kind, bool missing_ok);
 static List *pgan_get_attnums(TupleDesc tupDesc, Relation rel,
 							  List *attnamelist, bool is_copy);
 static char *pgan_get_query_for_relid(Relation rel, List *attlist,
@@ -134,6 +136,34 @@ static void pgan_object_relabel(const ObjectAddress *object,
 void
 _PG_init(void)
 {
+	/*
+	 * This extension can modify the Query in post_parse_analyze_hook, but
+	 * doesn't have a way to adapt the raw query string accordingly.  This can
+	 * cause problem with some extensions like pg_stat_statements that rely on
+	 * both referring to the same thing.  To make sure that we don't cause
+	 * interference, we process other post_parse_analyze_hook first before our
+	 * own processing, but we have to make sure that we're the last module
+	 * loaded.  Unfortunately we can only check that when our code is loaded,
+	 * so we can only hope that no incompatible extension will be loaded
+	 * afterwards.
+	 */
+	if (process_shared_preload_libraries_in_progress)
+	{
+		pgan_check_preload_lib(shared_preload_libraries_string,
+							   "shared_preload_libraries", false);
+	}
+	else
+	{
+		/*
+		 * Check on session_preload_libraries and local_preload_libraries in
+		 * case that's how we're loaded.
+		 */
+		pgan_check_preload_lib(session_preload_libraries_string,
+							   "session_preload_libraries", true);
+		pgan_check_preload_lib(local_preload_libraries_string,
+							   "local_preload_libraries", true);
+	}
+
 	register_label_provider(PGAN_PROVIDER, pgan_object_relabel);
 
 	DefineCustomBoolVariable("pg_anonymize.check_labels",
@@ -290,6 +320,48 @@ pgan_check_expression_valid(Relation rel, const ObjectAddress *object,
 		}
 	}
 	SPI_finish();
+}
+
+/*
+ * Check that pg_anonymize is loaded last according to the given
+ * xxx_preload_libraries_string.
+ *
+ * If missing_ok is true, don't raise an error if pg_anonymize is not present.
+ */
+static void
+pgan_check_preload_lib(char *libnames, char *kind, bool missing_ok)
+{
+		List	   *xpl;
+		ListCell   *lc;
+		char	   *libname;
+		int			nb;
+
+		if (!SplitIdentifierString(libnames, ',', &xpl))
+			elog(ERROR, "Could not parse %s", kind);
+
+		if (!missing_ok)
+		{
+			/* First a quick check to make sure we're the last element. */
+			libname = (char *) llast(xpl);
+			if (strcmp(libname, "pg_anonymize") != 0)
+				elog(ERROR, "pg_anonymize needs to be last in %s", kind);
+		}
+
+		/*
+		 * Some paranoid check: make sure we're not also somewhere else in the
+		 * xxx_preload_libraries, as in that case we would not be loaded
+		 * last.
+		 */
+		nb = 1;
+		foreach(lc, xpl)
+		{
+			libname = (char *) lfirst(lc);
+
+			if (nb != list_length(xpl) && strcmp(libname, "pg_anonymize") == 0)
+				elog(ERROR, "pg_anonymize needs to be last in %s", kind);
+
+			nb++;
+		}
 }
 
 /*
@@ -681,26 +753,30 @@ pgan_post_parse_analyze(ParseState *pstate, Query *query
 #endif
 		)
 {
-	/* Module disabled, recursive call or aborted transaction, bail out. */
-	if (!pgan_enabled || !pgan_toplevel || !IsTransactionState())
-		goto hook;
-
 	/* XXX - should we try to prevent write queries ? */
 
-	/* Role isn't declared as anonymized, bail out. */
-	if (!pgan_is_role_anonymized())
-		goto hook;
-
-	/* Walk the query and generate rewritten subquery when needed. */
-	pgan_hack_query((Node *) query, NULL);
-
-hook:
 	if (prev_post_parse_analyze_hook)
 		prev_post_parse_analyze_hook(pstate, query
 #if PG_VERSION_NUM >= 140000
 				, jstate
 #endif
 				);
+
+	/* Module disabled, recursive call or aborted transaction, bail out. */
+	if (!pgan_enabled || !pgan_toplevel || !IsTransactionState())
+		return;
+
+	/* Role isn't declared as anonymized, bail out. */
+	if (!pgan_is_role_anonymized())
+		return;
+
+	/*
+	 * Walk the query and generate rewritten subqueries when needed.  We need
+	 * to do this last as we don't have a way to generate a proper query string
+	 * for that new Query, other any module relying on the Query and the
+	 * query string to be consistent (like pg_stat_statements) would fail.
+	 */
+	pgan_hack_query((Node *) query, NULL);
 }
 
 /*
@@ -726,6 +802,7 @@ pgan_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 	CopyStmt *stmt;
 	char *sql;
 	bool prev_toplevel = pgan_toplevel;
+	const char *newsql = queryString;
 
 	/* Module disabled, recursive call or not a COPY statement, bail out. */
 	if (!pgan_enabled || !pgan_toplevel || !IsA(parsetree, CopyStmt))
@@ -748,6 +825,7 @@ pgan_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 	if (sql)
 	{
 		List *parselist;
+		StringInfoData copysql;
 
 		PG_TRY();
 		{
@@ -773,13 +851,29 @@ pgan_ProcessUtility(PlannedStmt *pstmt, const char *queryString,
 		}
 		stmt->query = linitial_node(RawStmt, parselist)->stmt;
 		pgan_toplevel = false;
+
+		/*
+		 * Generate a query string corresponding to the statement we're now
+		 * really executing, and update all related field in the PlannedStmt.
+		 */
+		initStringInfo(&copysql);
+		appendStringInfo(&copysql, "COPY (%s) TO ", sql);
+		if (stmt->filename != NULL)
+			appendStringInfo(&copysql, "'%s'",
+							 quote_literal_cstr(stmt->filename));
+		else
+			appendStringInfoString(&copysql, "STDOUT");
+
+		newsql = copysql.data;
+		pstmt->stmt_location = 0;
+		pstmt->stmt_len = strlen(newsql);
 	}
 
 hook:
 	PG_TRY();
 	{
 		if (prev_ProcessUtility)
-			prev_ProcessUtility(pstmt, queryString,
+			prev_ProcessUtility(pstmt, newsql,
 #if PG_VERSION_NUM >= 140000
 								readOnlyTree,
 #endif
@@ -792,7 +886,7 @@ hook:
 #endif
 								);
 		else
-			standard_ProcessUtility(pstmt, queryString,
+			standard_ProcessUtility(pstmt, newsql,
 #if PG_VERSION_NUM >= 140000
 									readOnlyTree,
 #endif
