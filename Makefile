@@ -1,7 +1,8 @@
 EXTVERSION   = 0.0.1
-REGRESS_OPTS = --inputdir=test
 PGFILEDESC   = "pg_anonymize - perform data anonymization transparently on the database"
 
+MODULE_big   = pg_anonymize
+OBJS         = pg_anonymize.o
 
 REGRESS      = 01_general \
                02_partitioning
@@ -11,10 +12,13 @@ endif
 REGRESS     += 03_inheritance \
                99_cleanup
 
-MODULE_big = pg_anonymize
-OBJS = pg_anonymize.o
+REGRESS_DIR  = "$(CURDIR)/regress"
+EXTRA_REGRESS_OPTS = --inputdir=$(REGRESS_DIR) \
+                     --outputdir=$(REGRESS_DIR)
 
-all:
+EXTRA_CLEAN  = $(REGRESS_DIR)/results \
+               $(REGRESS_DIR)/regression.diffs \
+               $(REGRESS_DIR)/regression.out
 
 PG_CONFIG = pg_config
 PGXS := $(shell $(PG_CONFIG) --pgxs)
