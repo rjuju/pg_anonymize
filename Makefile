@@ -19,7 +19,6 @@ release-zip: all
 	rm ./pg_anonymize-$(EXTVERSION) -rf
 
 
-DATA = $(wildcard *--*.sql)
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
 
