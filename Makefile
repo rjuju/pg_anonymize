@@ -1,9 +1,16 @@
 EXTVERSION   = 0.0.1
-REGRESS      = 01_general 02_partitioning
 REGRESS_OPTS = --inputdir=test
 PGFILEDESC   = "pg_anonymize - perform data anonymization transparently on the database"
 
 PG_CONFIG = pg_config
+
+REGRESS      = 01_general \
+               02_partitioning
+ifneq ($(MAJORVERSION), 10)
+	REGRESS += 02_partitioning_hash
+endif
+REGRESS     += 03_inheritance \
+               99_cleanup
 
 MODULE_big = pg_anonymize
 OBJS = pg_anonymize.o
@@ -22,9 +29,3 @@ release-zip: all
 
 PGXS := $(shell $(PG_CONFIG) --pgxs)
 include $(PGXS)
-
-ifneq ($(MAJORVERSION), 10)
-	REGRESS += 02_partitioning_hash
-endif
-
-REGRESS += 03_inheritance 99_cleanup
