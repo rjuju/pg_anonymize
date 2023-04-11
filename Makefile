@@ -2,7 +2,6 @@ EXTVERSION   = 0.0.1
 REGRESS_OPTS = --inputdir=test
 PGFILEDESC   = "pg_anonymize - perform data anonymization transparently on the database"
 
-PG_CONFIG = pg_config
 
 REGRESS      = 01_general \
                02_partitioning
@@ -17,6 +16,10 @@ OBJS = pg_anonymize.o
 
 all:
 
+PG_CONFIG = pg_config
+PGXS := $(shell $(PG_CONFIG) --pgxs)
+include $(PGXS)
+
 release-zip: all
 	git archive --format zip --prefix=pg_anonymize-${EXTVERSION}/ --output ./pg_anonymize-${EXTVERSION}.zip HEAD
 	unzip ./pg_anonymize-$(EXTVERSION).zip
@@ -25,7 +28,3 @@ release-zip: all
 	sed -i -e "s/__VERSION__/$(EXTVERSION)/g"  ./pg_anonymize-$(EXTVERSION)/META.json
 	zip -r ./pg_anonymize-$(EXTVERSION).zip ./pg_anonymize-$(EXTVERSION)/
 	rm ./pg_anonymize-$(EXTVERSION) -rf
-
-
-PGXS := $(shell $(PG_CONFIG) --pgxs)
-include $(PGXS)
