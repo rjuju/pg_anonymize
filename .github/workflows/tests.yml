@@ -83,7 +83,7 @@ jobs:
         sudo make install
 
     - name: Run pg_anonymize tests for postgres ${{ matrix.postgres_major_version }}
-      run: make installcheck || ( errcode=$?; cat regression.diffs && exit $errcode )
+      run: make installcheck || ( errcode=$?; cat regress/regression.diffs && exit $errcode )
 
     - name: Stop the running postgres ${{ matrix.postgres_major_version }} server
       run: pg_ctl -D $DATADIR stop
