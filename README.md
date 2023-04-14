@@ -1,10 +1,11 @@
+
+![Tests](https://github.com/rjuju/pg_anonymize/actions/workflows/tests.yml/badge.svg?branch=main)
+
 pg_anonymize
 ============
 
 pg_anonymize is a PostgreSQL extension that allows to perform data
 anonymization transparently on the database.
-
-![Tests](https://github.com/rjuju/pg_anonymize/actions/workflows/tests.yml/badge.svg?branch=main)
 
 Requirements
 ------------
