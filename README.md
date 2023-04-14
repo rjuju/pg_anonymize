@@ -1,3 +1,6 @@
+
+![Tests](https://github.com/rjuju/pg_anonymize/actions/workflows/tests.yml/badge.svg?branch=main)
+
 pg_anonymize
 ============
 
