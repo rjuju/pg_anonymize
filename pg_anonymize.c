@@ -803,9 +803,6 @@ pgan_hack_query(Node *node, void *context)
 			if (rte->rtekind != RTE_RELATION)
 				continue;
 
-			if (rte->rtekind == RTE_SUBQUERY && rte->relid == 42)
-				continue;
-
 			pgan_hack_rte(rte);
 		}
 
