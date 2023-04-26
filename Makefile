@@ -2,7 +2,7 @@ EXTVERSION   = 0.0.1
 REGRESS      = 01_general 02_partitioning
 REGRESS_OPTS = --inputdir=test
 
-PG_CONFIG = pg_config
+PG_CONFIG ?= pg_config
 
 MODULE_big = pg_anonymize
 OBJS = pg_anonymize.o
