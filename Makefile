@@ -27,4 +27,6 @@ ifneq ($(MAJORVERSION), 10)
 	REGRESS += 02_partitioning_hash
 endif
 
-REGRESS += 03_inheritance 99_cleanup
+REGRESS += 03_inheritance \
+	   10_security \
+	   99_cleanup
