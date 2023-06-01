@@ -36,6 +36,7 @@
 #if PG_VERSION_NUM < 140000
 #include "catalog/indexing.h"
 #endif
+#include "catalog/namespace.h"
 #include "catalog/pg_authid.h"
 #include "catalog/pg_inherits.h"
 #if PG_VERSION_NUM >= 110000
@@ -314,6 +315,7 @@ pgan_check_expression_valid(Relation rel, const ObjectAddress *object,
 	StringInfoData sql;
 	int ret;
 	bool prev_xact_read_only;
+	char *prev_search_path;
 
 	initStringInfo(&sql);
 	appendStringInfo(&sql, "SELECT pg_typeof(%s)::regtype::oid FROM %s.%s LIMIT 1",
@@ -334,13 +336,20 @@ pgan_check_expression_valid(Relation rel, const ObjectAddress *object,
 	prev_xact_read_only = XactReadOnly;
 	PG_TRY();
 	{
+		prev_search_path = pstrdup(namespace_search_path);
 		XactReadOnly = true;
+		set_config_option("search_path", "pg_catalog", PGC_SUSET,
+						  PGC_S_SESSION, GUC_ACTION_SET, true, 0, false);
 		SPI_execute(sql.data, true, 1);
 		XactReadOnly = prev_xact_read_only;
+		set_config_option("search_path", prev_search_path, PGC_SUSET,
+						  PGC_S_SESSION, GUC_ACTION_SET, true, 0, false);
 	}
 	PG_CATCH();
 	{
 		XactReadOnly = prev_xact_read_only;
+		set_config_option("search_path", prev_search_path, PGC_SUSET,
+						  PGC_S_SESSION, GUC_ACTION_SET, true, 0, false);
 		errcontext("during validation of expression \"%s\"", seclabel);
 		PG_RE_THROW();
 	}

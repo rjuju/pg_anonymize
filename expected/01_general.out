@@ -37,12 +37,12 @@ SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.first_name
 ERROR:  The expression returns "integer" type, but the  column is defined as "text"
 -- underlying write
 SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.first_name
-    IS $$write_and_return(first_name)$$;
+    IS $$public.write_and_return(first_name)$$;
 ERROR:  cannot execute INSERT in a read-only transaction
 CONTEXT:  SQL statement "INSERT INTO public.customer(id) VALUES (0)"
-PL/pgSQL function write_and_return(text) line 3 at SQL statement
-SQL statement "SELECT pg_typeof(write_and_return(first_name))::regtype::oid FROM public.customer LIMIT 1"
-during validation of expression "write_and_return(first_name)"
+PL/pgSQL function public.write_and_return(text) line 3 at SQL statement
+SQL statement "SELECT pg_typeof(public.write_and_return(first_name))::regtype::oid FROM public.customer LIMIT 1"
+during validation of expression "public.write_and_return(first_name)"
 -- SQL injection
 SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.first_name
     IS $$'some value'; INSERT INTO public.customer SELECT 1; --$$;

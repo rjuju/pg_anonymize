@@ -32,7 +32,7 @@ SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.first_name
     IS '1';
 -- underlying write
 SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.first_name
-    IS $$write_and_return(first_name)$$;
+    IS $$public.write_and_return(first_name)$$;
 -- SQL injection
 SECURITY LABEL FOR pg_anonymize ON COLUMN public.customer.first_name
     IS $$'some value'; INSERT INTO public.customer SELECT 1; --$$;
