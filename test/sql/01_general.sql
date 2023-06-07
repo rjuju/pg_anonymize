@@ -75,6 +75,16 @@ COPY public.customer TO STDOUT;
 COPY public.customer(first_name, phone_number) TO STDOUT;
 COPY (SELECT * FROM public.customer) TO STDOUT;
 
+-- plpgsql code should anonymize correctly
+DO $$
+DECLARE
+	out_last_name text;
+BEGIN
+	SELECT last_name INTO out_last_name FROM public.customer;
+	RAISE NOTICE 'got %', out_last_name;
+END;
+$$ language plpgsql;
+
 -- current role should see normal data when pg_anonymize isn't enabled
 SET pg_anonymize.enabled = 'off';
 SELECT * FROM public.customer;
