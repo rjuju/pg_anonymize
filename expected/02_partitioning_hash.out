@@ -107,3 +107,6 @@ SELECT * FROM t_part_hash_1 ORDER BY id;
 COPY t_part_hash_1 TO STDOUT;
 3	part hidden
 4	part hidden
+-- cleanup
+SET pg_anonymize.enabled = 'on';
+SECURITY LABEL FOR pg_anonymize ON ROLE :current_user IS NULL;

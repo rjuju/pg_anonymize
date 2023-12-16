@@ -45,3 +45,7 @@ COPY t_part_hash_0 TO STDOUT;
 -- and still see same anonymized data
 SELECT * FROM t_part_hash_1 ORDER BY id;
 COPY t_part_hash_1 TO STDOUT;
+
+-- cleanup
+SET pg_anonymize.enabled = 'on';
+SECURITY LABEL FOR pg_anonymize ON ROLE :current_user IS NULL;

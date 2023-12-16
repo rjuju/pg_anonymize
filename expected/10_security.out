@@ -32,3 +32,6 @@ NOTICE:  saw XXX - Taiwan
   1 | XXX  | Taiwan
 (1 row)
 
+-- cleanup
+SET pg_anonymize.enabled = 'on';
+SECURITY LABEL FOR pg_anonymize ON ROLE :current_user IS NULL;

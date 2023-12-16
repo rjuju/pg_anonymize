@@ -28,3 +28,7 @@ END;
 $_$ LANGUAGE plpgsql COST 0.0000000000000000000001;
 
 SELECT * FROM customer_security WHERE leak_info(name, country);
+
+-- cleanup
+SET pg_anonymize.enabled = 'on';
+SECURITY LABEL FOR pg_anonymize ON ROLE :current_user IS NULL;

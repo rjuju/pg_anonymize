@@ -162,3 +162,7 @@ COPY t_part_nest_23 TO STDOUT;
 -- and a mix of inherited and non inherited anonymized data
 SELECT * FROM t_part_nest_23_3 ORDER BY id;
 COPY t_part_nest_23_3 TO STDOUT;
+
+-- cleanup
+SET pg_anonymize.enabled = 'on';
+SECURITY LABEL FOR pg_anonymize ON ROLE :current_user IS NULL;

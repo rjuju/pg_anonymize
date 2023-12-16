@@ -136,3 +136,6 @@ SELECT * FROM t_inh_ab_c ORDER BY id;
 
 COPY t_inh_ab_c TO STDOUT;
 4	root hidden	t_inh_c	t_inh_c	part c hidden
+-- cleanup
+SET pg_anonymize.enabled = 'on';
+SECURITY LABEL FOR pg_anonymize ON ROLE :current_user IS NULL;

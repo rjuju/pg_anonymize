@@ -59,3 +59,7 @@ COPY t_inh_b TO STDOUT;
 -- and a mix or local and inherited label
 SELECT * FROM t_inh_ab_c ORDER BY id;
 COPY t_inh_ab_c TO STDOUT;
+
+-- cleanup
+SET pg_anonymize.enabled = 'on';
+SECURITY LABEL FOR pg_anonymize ON ROLE :current_user IS NULL;
