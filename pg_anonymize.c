@@ -334,9 +334,9 @@ pgan_check_expression_valid(Relation rel, const ObjectAddress *object,
 	 * queries, so force additional executor check.
 	 */
 	prev_xact_read_only = XactReadOnly;
+	prev_search_path = pstrdup(namespace_search_path);
 	PG_TRY();
 	{
-		prev_search_path = pstrdup(namespace_search_path);
 		XactReadOnly = true;
 		set_config_option("search_path", "pg_catalog", PGC_SUSET,
 						  PGC_S_SESSION, GUC_ACTION_SET, true, 0, false);
