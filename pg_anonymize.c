@@ -138,7 +138,7 @@ typedef struct pganWalkerContext
 
 /*---- Local variables ----*/
 
-bool pgan_toplevel = true;
+static bool pgan_toplevel = true;
 
 /*---- GUC variables ----*/
 
