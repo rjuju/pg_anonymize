@@ -412,10 +412,14 @@ pgan_check_preload_lib(char *libnames, char *kind, bool missing_ok)
 {
 		List	   *xpl;
 		ListCell   *lc;
+		char	   *rawstring;
 		char	   *libname;
 		int			nb;
 
-		if (!SplitIdentifierString(libnames, ',', &xpl))
+		/* Need a modifiable copy of string */
+		rawstring = pstrdup(libnames);
+
+		if (!SplitIdentifierString(rawstring, ',', &xpl))
 			elog(ERROR, "Could not parse %s", kind);
 
 		if (!missing_ok)
